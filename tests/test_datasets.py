@@ -191,5 +191,26 @@ class GoogleCalendarCSVTests(unittest.TestCase):
             self.assertEqual(data[2]['data_ymd'], '2018-06-05')
         
 
+class InputDatasetTests(unittest.TestCase):
+    def testRequireExistence(self):
+        with tempfile.TemporaryDirectory() as d:
+            with self.assertRaises(FileNotFoundError) as cm:
+                ds = datasets.InputDataset('input.csv')
+                with ds.open_csv() as reader:
+                    print(reader.fieldnames)
+                
+    def testOpensExisting(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(join(d, 'input.csv'), 'w', newline='\r\n') as f:
+                f.write('a,b\n')
+                f.write('1,2\n')
+            ds = datasets.InputDataset('input.csv')
+            with ds.open_csv(directory=d) as reader:
+                self.assertEqual(reader.fieldnames, ['a', 'b'])
+                data = [x for x in reader]
+                self.assertEqual(len(data), 1)
+                self.assertEqual(data[0]['b'], '2')
+
+            
 if __name__ == '__main__':
     unittest.main()

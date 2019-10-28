@@ -2,6 +2,7 @@
 import requests
 import os.path
 import os
+import errno
 import lzma
 import re
 import csv
@@ -14,7 +15,7 @@ from unidecode import unidecode
 SERVICE_ACCOUNT_FILE = 'service-account-key.json'
 
 class Dataset:
-    def __init__(self, name, url, directory='.'):
+    def __init__(self, name, url, directory='data'):
         self.filename = name
         self.url = url
         self.directory = directory
@@ -54,10 +55,20 @@ class Dataset:
         finally:
             f.close()
 
+class InputDataset(Dataset):
+    def __init__(self, filename, directory='data'):
+        super().__init__(filename, None, directory=directory)
+        self.encoding='utf-8'
 
+    def download(self, directory=None, **kwargs):
+        filepath = self._get_filepath(directory=directory)
+        if not os.path.isfile(filepath):
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filepath)
+        return filepath
+        
     
 class SucupiraDataset(Dataset):
-    def __init__(self, name, url, directory='.'):
+    def __init__(self, name, url, directory='data'):
         super().__init__(name, url, directory)
         self.csv_delim = ';'
         self.encoding = 'utf-8'
@@ -86,7 +97,7 @@ class SucupiraDataset(Dataset):
 class SucupiraProgram(Dataset):
     FIELD_UPGRADES = {'NM_ORIENTADOR' : 'NM_ORIENTADOR_PRINCIPAL'}
     
-    def __init__(self, filename, program_code, year2dataset, directory='.'):
+    def __init__(self, filename, program_code, year2dataset, directory='data'):
         super().__init__(filename, None, directory)
         self.program_code = program_code
         self.year2dataset = year2dataset

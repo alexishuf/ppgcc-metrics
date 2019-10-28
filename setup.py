@@ -16,5 +16,5 @@ setup(
     author_email='alexishuf@gmail.com',
     url='https://github.com/alexishuf/ppgcc-metrics',
     license=license,
-    packages=find_packages(exclude=('tests'))
+    packages=find_packages(exclude=('data', 'tests'))
 )
