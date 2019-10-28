@@ -1,5 +1,5 @@
 
-all: 
+all: test 
 
 .PHONY: clean test
 

@@ -1,0 +1,120 @@
+{
+  "kind": "calendar#events",
+  "etag": "\"p338cndt2kveu80g\"",
+  "summary": "AGENDA DE EVENTOS - PPGCC/UFSC (clique no evento para ver os detalhes)",
+  "updated": "2019-09-19T16:29:14.818Z",
+  "timeZone": "America/Sao_Paulo",
+  "accessRole": "reader",
+  "defaultReminders": [],
+  "nextSyncToken": "CNDLt6Kn3eQCENDLt6Kn3eQCGAE=",
+  "items": [
+    {
+      "kind": "calendar#event",
+      "etag": "\"3100119426536000\"",
+      "id": "33odqvabs1gavtnrl0kj6lon8l",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=MzNvZHF2YWJzMWdhdnRucmwwa2o2bG9uOGwgcHBnY2NudXZlbUBt",
+      "created": "2019-02-06T12:44:08.000Z",
+      "updated": "2019-02-13T12:08:33.268Z",
+      "summary": "Defesa de Mestrado - Lucas Viana Knochenhuaer",
+      "description": "EVENTO: Defesa de Mestrado\n\n\nALUNO: Lucas Viana KnochenhuaerCURR\u00cdCULO LATTES: http://lattes.cnpq.br/5647962489171513\nORIENTADORA: Profa. Dra. Carina Friedrich Dorneles\n\nDATA E HOR\u00c1RIO: 27/02/2019 - 14h\nLOCAL: CTC/INE - Sala 105 (Audit\u00f3rio)\n\nT\u00edtulo: WANQA: UMA ABORDAGEM PARA IDENTIFICAR NOVAS QUEST\u00d5ES N\u00c3O RESPOND\u00cdVEIS EM COMUNIDADES DE PERGUNTAS E RESPOSTAS\n\nResumo: Grandes reposit\u00f3rios de conhecimento est\u00e3o distribu\u00eddos pela Web, sendo um dos mais populares e colaborativos as comunidades de perguntas e respostas, ou as chamadas Community Question Answering (CQA). Nessas comunidades, os usu\u00e1rios perguntam e respondem quest\u00f5es uns dos outros, al\u00e9m de avaliarem o conte\u00fado produzido. Entretanto, devido ao grande volume de quest\u00f5es postadas diariamente, muitas dessas quest\u00f5es n\u00e3o recebem respostas. Esse problema vem sendo estudado para entender sua raz\u00e3o e evitar que novas quest\u00f5es permane\u00e7am sem retorno. Nesses estudos, caracter\u00edsticas espec\u00edficas presentes nestas comunidades foram exploradas de forma a se criar abordagens que classifiquem quest\u00f5es rec\u00e9m postadas em respond\u00edveis ou n\u00e3o respond\u00edveis. Entretanto, as abordagens anteriores s\u00e3o altamente dependentes das caracter\u00edsticas existentes em uma determinada comunidade, n\u00e3o sendo poss\u00edvel sua portabilidade a comunidades que n\u00e3o possuem as mesmas caracter\u00edsticas. Para resolver este problema, neste trabalho \u00e9 proposto um m\u00e9todo que gera um modelo capaz de classificar uma nova quest\u00e3o em respond\u00edvel ou n\u00e3o respond\u00edvel que seja aplic\u00e1vel na maioria, ou at\u00e9 mesmo em todas as comunidades. Para isso, diferentes comunidades foram analisadas a fim de se extrair o maior n\u00famero de caracter\u00edsticas comuns poss\u00edveis.  Com esse conjunto pode-se treinar um modelo de classifica\u00e7\u00e3o para uma categoria de quest\u00f5es em qualquer comunidade de perguntas e respostas. A finalidade desse modelo \u00e9 avaliar novas quest\u00f5es no momento em que o usu\u00e1rio as submete. Dessa forma, as novas quest\u00f5es n\u00e3o respond\u00edveis ser\u00e3o detectadas pelo modelo classificador. Com isso, os usu\u00e1rios podem ser informados para ajustar a quest\u00e3o sendo postada. A proposta WANQA foi testada atrav\u00e9s de um conjunto de experimentos realizados em diferentes comunidades de pergunta e resposta, com diferentes algoritmos classificadores. Os resultados foram maior acur\u00e1cia, precis\u00e3o e revoca\u00e7\u00e3o do que os baselines experimentados.\n\nPalavras-Chave: Comunidade de Perguntas e Respostas. Classifica\u00e7\u00e3o de Texto. Recupera\u00e7\u00e3o de Informa\u00e7\u00e3o.\n\nBANCA EXAMINADORA:\n\nPRESIDENTE: Carina Friedrich Dorneles\n- Roberto Willrich\n- *Daniel Hasan Dalip (CEFET-MG) - http://lattes.cnpq.br/2960751321530666\n- *Renata Galante (UFRGS) - http://lattes.cnpq.br/3867942762661182\n \n*Participa\u00e7\u00e3o por Videoconfer\u00eancia",
+      "location": "CTC/INE - Sala 105, R. Delfino Conti, 262-278 - Trindade, Florian\u00f3polis - SC, 88036-020, Brasil",
+      "creator": {
+        "email": "ppgccnuvem@gmail.com",
+        "self": true
+      },
+      "organizer": {
+        "email": "ppgccnuvem@gmail.com",
+        "self": true
+      },
+      "start": {
+        "dateTime": "2019-02-27T13:30:00-03:00"
+      },
+      "end": {
+        "dateTime": "2019-02-27T16:00:00-03:00"
+      },
+      "iCalUID": "33odqvabs1gavtnrl0kj6lon8l@google.com",
+      "sequence": 1,
+      "extendedProperties": {
+        "private": {
+          "everyoneDeclinedDismissed": "-1"
+        }
+      },
+      "reminders": {
+        "useDefault": true
+      }
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3083040890976000\"",
+      "id": "7jgddfe1r5h0numgq427ekiev3",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=N2pnZGRmZTFyNWgwbnVtZ3E0Mjdla2lldjMgcHBnY2NudXZlbUBt",
+      "created": "2018-10-22T13:57:35.000Z",
+      "updated": "2018-11-06T16:07:25.488Z",
+      "summary": "Semin\u00e1rio de Andamento de Doutorado (SAD) - Felipe Schneider Costa",
+      "description": "EVENTO: Semin\u00e1rio de Andamento de Doutorado (SAD)\n\nALUNO: FELIPE SCHNEIDER COSTA - felipekosta@gmail.com\nORIENTADOR: Mario Antonio Ribeiro Dantas\nCOORIENTADOR: Silvia Modesto Nassar\n\nT\u00cdTULO: Tratamento da incerteza em dados de contexto\n\nRESUMO: Em 2020 o universo digital ir\u00e1 conter quase tantos bits quanto estrelas no universo, atingindo assim a casa dos 44 zettabytes, ou 44 trilh\u00f5es de gigabytes. \u00c9 importante reconhecer que grande parte dessa explos\u00e3o de dados \u00e9 o resultado de uma explos\u00e3o da quantidade de dispositivos localizados na borda da rede, incluindo sensores embutidos, smartphones e tablets. Diante disso, o compartilhamento e a colabora\u00e7\u00e3o de dados e outros recursos se mostram como atividades fundamentais para viabilizar ambientes ub\u00edquos e sustent\u00e1veis, como cidades e sociedades inteligentes. Entretanto, os dados gerados no ambiente da Internet das Coisas s\u00e3o complexos e heterog\u00eaneos, devido justamente aos objetos complexos e heterog\u00eaneos conectados a ele. Por isso, \u00e0 medida em que o campo cresce em n\u00fameros e heterogeneidade, \u201cintelig\u00eancia\u201d se torna um ponto crucial para o sucesso futuro da IoT. Nesse sentido, um dos principais problemas no caminho da IoT inteligente \u00e9 entender o \u201ccontexto\u201d, ou compreender o ambiente, a situa\u00e7\u00e3o ou o status, utilizando dados de sensores e, em seguida, agindo de maneira aut\u00f4noma. Isso \u00e9 chamado de \"computa\u00e7\u00e3o com reconhecimento de contexto\" que exige detec\u00e7\u00e3o e, cada vez mais, aprendizado. De uma forma geral, existem dois prop\u00f3sitos principais para raciocinar sobre a incerteza em dados de sensores: melhorar a qualidade da informa\u00e7\u00e3o contextual e inferir novos tipos de informa\u00e7\u00e3o de contexto. Dessa forma, o esfor\u00e7o dessa pesquisa reside no tratamento da incerteza em dados de contexto oriundos de sensores no ambiente IoT.\n\nPALAVRAS-CHAVE:Dados de contexto, consci\u00eancia de contexto, qualidade de contexto, fus\u00e3o de dados, Internet das Coisas. Intelig\u00eancia Artificial.\n\nBANCA EXAMINADORA:\n\n- Mario Antonio Ribeiro Dantas\n- Alex Sandro Roschildt Pinto\n- Carina Friedrich Dorneles\n- Tite Todesco",
+      "location": "CTC/INE - Sala 106, R. Delfino Conti, 262-278 - Trindade, Florian\u00f3polis - SC, 88036-020, Brasil",
+      "creator": {
+        "email": "ppgccnuvem@gmail.com",
+        "self": true
+      },
+      "organizer": {
+        "email": "ppgccnuvem@gmail.com",
+        "self": true
+      },
+      "start": {
+        "dateTime": "2018-11-07T14:00:00-02:00"
+      },
+      "end": {
+        "dateTime": "2018-11-07T16:00:00-02:00"
+      },
+      "iCalUID": "7jgddfe1r5h0numgq427ekiev3@google.com",
+      "sequence": 1,
+      "extendedProperties": {
+        "private": {
+          "everyoneDeclinedDismissed": "-1"
+        }
+      },
+      "reminders": {
+        "useDefault": true
+      }
+    },
+    {
+      "kind": "calendar#event",
+      "etag": "\"3054522130828000\"",
+      "id": "01srjnv75a4c5quvm029nsm1q1",
+      "status": "confirmed",
+      "htmlLink": "https://www.google.com/calendar/event?eid=MDFzcmpudjc1YTRjNXF1dm0wMjluc20xcTEgcHBnY2NudXZlbUBt",
+      "created": "2018-05-25T15:11:05.000Z",
+      "updated": "2018-05-25T15:11:05.414Z",
+      "summary": "Exame de Qualifica\u00e7\u00e3o de Mestrado (EQM) - Lais Borin",
+      "description": "ORIENTADOR: Marcio Castro\nCOORIENTADORA: Patricia Della M\u00e9a Plentz\n\nT\u00cdTULO: Escalonamento com Economia de Energia em Sistemas Multiprocessados de Tempo Real\n\nRESUMO: A economia de energia possui grande import\u00e2ncia no desenvolvimento de sistemas multiprocessados. A redu\u00e7\u00e3o no consumo a partir de t\u00e9cnicas como Dynamic Voltage Frequency Scaling (DVFS) e Dynamic Power Management (DPM) possibilita o prolongamento da execu\u00e7\u00e3o do sistema quando, por exemplo, alimentado por baterias. Por\u00e9m, reduzir o consumo de energia em sistemas de tempo real pode afetar o cumprimento das restri\u00e7\u00f5es de tempo impostas ao sistema. Somado a isso, para economizar energia, as estrat\u00e9gias devem apresentar comportamento otimizado, uma vez que transferir dados e realizar computa\u00e7\u00f5es geram gastos energ\u00e9ticos. Contudo, os trabalhos desenvolvidos para economia de energia em sistemas multiprocessados de tempo real neglicenciam a complexidade da solu\u00e7\u00e3o e o volume de dados gerados para realizar o escalonamento. Al\u00e9m disso, os trabalhos partem de abordagens com escalonamento global ou escalonamento particionado. Abordagens que usam de escalonamento global possuem maiores sobrecargas, como migra\u00e7\u00e3o de tarefas e preemp\u00e7\u00f5es, o que pode gerar maior consumo de energia. Por outro lado, nas abordagens que utilizam escalonamento particionado, a migra\u00e7\u00e3o de tarefas n\u00e3o \u00e9 permitida, sendo necess\u00e1rio realizar a atribui\u00e7\u00e3o tarefa-processador antes da execu\u00e7\u00e3o do sistema. Uma vez que a atribui\u00e7\u00e3o \u00e9 est\u00e1tica pode ser insatisfat\u00f3ria para a economia de energia. Algoritmos semi-particionados como o Reduction to UNiprocessor (RUN) s\u00e3o propostos para superar as desvantagens das abordagens globais e particionas. O RUN apresenta estrutura de dados otimizada para o escalonamento, al\u00e9m de apresentar baixa migra\u00e7\u00e3o de tarefas e preemp\u00e7\u00f5es. Este trabalho prop\u00f5em uma heur\u00edstica para economia de energia em sistemas multiprocessados de tempo real. A proposta tem como objetivo reduzir o consumo de energia a partir de um algoritmo otimizado para escalonamento multiprocessado de tempo real. Para isso, a heur\u00edstica ser\u00e1 desenvolvida a partir do algoritmo de escalonamento RUN e da t\u00e9cnica de DPM para economia de energia.\n\nPALAVRAS-CHAVE: Economia de energia. Escalonamento de tempo real.  Escalonamento multiprocessado. Dynamic Power Management. Reduction to Uniprocessor.\n\nBANCA EXAMINADORA:\nPRESIDENTE: M\u00e1rcio Bastos Castro\n- Luciana de Oliveira Rech\n- Ant\u00f4nio Augusto Medeiros Fr\u00f6hlich",
+      "location": "CTC/INE - Sala 105 (audit\u00f3rio)",
+      "creator": {
+        "email": "ppgccnuvem@gmail.com",
+        "self": true
+      },
+      "organizer": {
+        "email": "ppgccnuvem@gmail.com",
+        "self": true
+      },
+      "start": {
+        "dateTime": "2018-06-05T17:30:00-03:00"
+      },
+      "end": {
+        "dateTime": "2018-06-05T19:00:00-03:00"
+      },
+      "iCalUID": "01srjnv75a4c5quvm029nsm1q1@google.com",
+      "sequence": 0,
+      "extendedProperties": {
+        "private": {
+          "everyoneDeclinedDismissed": "-1"
+        }
+      },
+      "reminders": {
+        "useDefault": true
+      }
+    }
+  ]
+}
