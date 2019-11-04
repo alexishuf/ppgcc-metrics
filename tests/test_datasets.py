@@ -73,19 +73,20 @@ class GoogleCalendarTests(unittest.TestCase):
 
 class GoogleCalendarCSVTests(unittest.TestCase):
     def setUp(self):
-        self.calendar_json = resource_stream('tests.resources', 'calendar.json').read().decode()
+        self.calendar_json = resource_stream('tests.resources', 'calendar.json')
         self.tmp = tempfile.TemporaryDirectory()
         self.calendar = datasets.GoogleCalendar('calendar.json',
                                                 'ppgccnuvem@gmail.com',
                                                 directory=self.tmp.name)
         with open(join(self.tmp.name, 'calendar.json'), 'w') as f:
-            f.write(self.calendar_json)
+            f.write(self.calendar_json.read().decode())
         self.cal_csv = datasets.GoogleCalendarCSV('calendar.csv',
                                                   self.calendar,
                                                   directory=self.tmp.name)
         
     def tearDown(self):
         self.tmp.cleanup()
+        self.calendar_json.close()
 
     def testSummaryMismatch(self):
         d = self.cal_csv.parse_event({'summary': 'asd', 'description': '',

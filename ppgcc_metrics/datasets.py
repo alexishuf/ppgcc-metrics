@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import requests
+import requests_html
 import os.path
 import os
 import errno
@@ -8,6 +9,9 @@ import re
 import csv
 import json
 import googleapiclient.discovery
+import pyperclip
+from random import randint
+from time import sleep
 from contextlib import contextmanager
 from google.oauth2 import service_account
 from unidecode import unidecode
@@ -15,12 +19,13 @@ from unidecode import unidecode
 SERVICE_ACCOUNT_FILE = 'service-account-key.json'
 
 class Dataset:
-    def __init__(self, name, url, directory='data'):
+    def __init__(self, name, url, directory='data',
+                 csv_delim=',', encoding='utf-8'):
         self.filename = name
         self.url = url
         self.directory = directory
-        self.csv_delim = ','
-        self.encoding = None
+        self.csv_delim = csv_delim
+        self.encoding = encoding
 
     def _get_filepath(self, directory=None, create_dir=True, **kwargs):
         directory = self.directory if directory == None else directory
@@ -56,9 +61,11 @@ class Dataset:
             f.close()
 
 class InputDataset(Dataset):
-    def __init__(self, filename, directory='data'):
-        super().__init__(filename, None, directory=directory)
-        self.encoding='utf-8'
+    def __init__(self, filename, **kwargs):
+        super().__init__(filename, None, **kwargs)
+
+    def __str__(self):
+        return self.filename
 
     def download(self, directory=None, **kwargs):
         filepath = self._get_filepath(directory=directory)
@@ -68,10 +75,8 @@ class InputDataset(Dataset):
         
     
 class SucupiraDataset(Dataset):
-    def __init__(self, name, url, directory='data'):
-        super().__init__(name, url, directory)
-        self.csv_delim = ';'
-        self.encoding = 'utf-8'
+    def __init__(self, name, url, **kwargs):
+        super().__init__(name, url, csv_delim=';', **kwargs)
 
     def download(self, directory=None, force=False, **kwargs):
         filepath = self._get_filepath(directory=directory)
@@ -97,12 +102,10 @@ class SucupiraDataset(Dataset):
 class SucupiraProgram(Dataset):
     FIELD_UPGRADES = {'NM_ORIENTADOR' : 'NM_ORIENTADOR_PRINCIPAL'}
     
-    def __init__(self, filename, program_code, year2dataset, directory='data'):
-        super().__init__(filename, None, directory)
+    def __init__(self, filename, program_code, year2dataset, **kwargs):
+        super().__init__(filename, None, csv_delim=';', **kwargs)
         self.program_code = program_code
         self.year2dataset = year2dataset
-        self.csv_delim = ';'
-        self.encoding = 'utf-8'
 
     def upgrade_fields(self, d):
         r = dict()
@@ -137,7 +140,6 @@ class GoogleCalendar(Dataset):
         super().__init__(filename, None, **kwargs)
         self.calendarId = calendarId
         self.key_file = key_file
-        self.encoding = 'utf-8'
 
     def download(self, directory=None, force=False, **kwargs):
         filepath = self._get_filepath(directory=directory)
@@ -175,8 +177,6 @@ class GoogleCalendarCSV(Dataset):
     def __init__(self, filename, calendarDataset, **kwargs):
         super().__init__(filename, None, **kwargs)
         self.calendar = calendarDataset
-        self.csv_delim = ','
-        self.encoding = 'utf-8'
 
     def __cleanup_name(self, s):
         s = self.RX_EATEN_NEWLINE.sub('', unidecode(s.strip()))
@@ -231,9 +231,176 @@ class GoogleCalendarCSV(Dataset):
                     if d != None:
                         writer.writerow(d)
         return filepath
-        
-        
+
+def _tolerant_int(e, **kwargs):
+    try:
+        matcher = re.search(r'(-?[0-9]+)', e)
+        s = '' if matcher is None else matcher.group(1)
+        if 'empty' in kwargs and s == '':
+            return kwargs['empty']
+        return int(s)
+    except ValueError:
+        pass
+
+def _get_html_int(html, selector, **kwargs):
+    if html == None:
+        return None
+    e = html.find(selector, first=('idx' not in kwargs))
+    if 'idx' in kwargs:
+        idx = kwargs['idx']
+        e = e[idx] if len(e) > idx else None
+    return _tolerant_int(e.text) if e != None else None
+
+def _get_html_ints(html, selector, **kwargs):
+    if html == None:
+        return None
+    return [_tolerant_int(x.text, **kwargs) for x in html.find(selector)]
+
     
+class Scholar(Dataset):
+    __URL_BASE = 'https://scholar.google.com.br/citations?user='
+    MAIN_FIELDS = ['docente', 'scholar_id', 'documents', 'citations', \
+                   'docs-citing', 'docs-citing-5', 'h-index', 'h5-index']
+    WORKS_FIELDS = ['year', 'citations', 'authors', 'title', 'venue']
+    
+    def __init__(self, docentes_dataset, basename='scholar',
+                 delay_bounds_secs=(7, 27), short_fraction=4,
+                 **kwargs):
+        super().__init__(basename+'.csv', None, **kwargs)
+        self.basename = basename
+        self.docentes_dataset = docentes_dataset
+        self.delay_bounds_secs = delay_bounds_secs
+        self.short_fraction = short_fraction
+        self.session = requests_html.HTMLSession()
+        self.delay_pending = False
+
+    def __str__(self):
+        return f'Scholar({self.docentes_dataset}, dir={self.directory})'
+
+    def feed_works_sink(self, tbody_html, works_sink):
+        for tds in [tr.find('td') for tr in tbody_html.find('tr.gsc_a_tr')]:
+            entry = {}
+            entry['title']     = tds[0].find('a', first=True).text
+            entry['authors']   = tds[0].find('div')[0].text.replace(',', ';')
+            entry['venue']     = tds[0].find('div')[1].text
+            entry['citations'] = _tolerant_int(tds[1].text, empty=0)
+            entry['year']      = _tolerant_int(tds[2].text, empty=0)
+            works_sink(entry)
+
+    def scrap_works(self, html, url, works_sink):
+        TRS_SELECTOR = 'tr td.gsc_a_c a.gsc_a_ac'
+        SELECTOR = '#gsc_a_t tbody ' + TRS_SELECTOR
+        values = []
+        window = [0,20]
+        values += _get_html_ints(html, SELECTOR, empty=0)
+        self.feed_works_sink(html.find('#gsc_a_t tbody', first=True), works_sink)
+        while len(values) >= window[1]:
+            window = [window[1], window[1]+60]
+            json = self.session.post(url + f'&cstart={window[0]}&pagesize'
+                                     + f'={window[1]}', data='json=1')
+            json = json.json()
+            payload = json['B'].strip()
+            if payload != '':
+                trs = requests_html.HTML(html=payload)
+                values += _get_html_ints(trs, TRS_SELECTOR, empty=0)
+                self.feed_works_sink(trs, works_sink)
+        return {'count': len(values), 'citation-counts': values}
+        
+    def fetch(self, scholar_id, works_sink):
+        if self.delay_pending:
+            p = self.delay_bounds_secs
+            secs = randint(p[0], p[1])
+            print(f'{self}: Sleeping {secs} seconds')
+            sleep(secs)
+        self.delay_pending = True
+        url = self.__URL_BASE + scholar_id
+        print(f'{self}: Fetching {url}')
+        html = self.session.get(url).html
+        rows = html.find('#gsc_rsb_st tbody tr',)[:2]
+        if len(rows) < 2:
+            raise RuntimeError(f'{url} has {len(rows)} rows in metric tables!' +
+                               ' Scholar was redesigned or realised i\'m ' +
+                               'not human')
+        works = self.scrap_works(html, url, works_sink)
+        citations = sum(works['citation-counts'])
+        print(f'Fetched {works["count"]} documents and {citations} citations for {scholar_id}')
+        return {
+            'scholar_id': scholar_id,
+            'documents': works['count'],
+            'citations': citations,
+            'docs-citing': _get_html_int(rows[0], 'td.gsc_rsb_std'),
+            'docs-citing-5': _get_html_int(rows[0], 'td.gsc_rsb_std', idx=1),
+            'h-index': _get_html_int(rows[1], 'td.gsc_rsb_std'),
+            'h5-index': _get_html_int(rows[1], 'td.gsc_rsb_std', idx=1)
+        }
+
+    def download(self, directory=None, force=False, **kwargs):
+        directory = self.directory if directory == None else directory
+        filepath = self._get_filepath(directory=directory, **kwargs)
+        if not force and os.path.isfile(filepath):
+            return filepath
+        workspath = os.path.join(directory, self.basename+'-works.csv')
+        with self.docentes_dataset.open_csv() as reader, \
+             open(filepath, 'w', newline='', encoding='utf-8') as main_f, \
+             open(workspath, 'w', newline='', encoding='utf-8') as works_f:
+            m_writer = csv.DictWriter(main_f, fieldnames=self.MAIN_FIELDS)
+            m_writer.writeheader()
+            w_writer = csv.DictWriter(works_f, fieldnames=self.WORKS_FIELDS)
+            w_writer.writeheader()
+            for row in reader:
+                sch_id = row['scholar_id']
+                if sch_id != None and sch_id.strip() != '':
+                    d = self.fetch(sch_id, lambda x: w_writer.writerow(x))
+                    d['docente'] = row['docente']
+                    m_writer.writerow(d)
+
+
+class ScholarFile(Dataset):
+    def __init__(self, scholar, suffix, **kwargs):
+        filename = scholar.basename + suffix + '.csv'
+        super().__init__(filename, None, **kwargs)
+        self.scholar = scholar
+
+    def download(self, **kwargs):
+        self.scholar.dowload(**kwargs)
+        return self._get_filepath(**kwargs)
+
+class ScopusQuery(Dataset):
+    def __init__(self, docentes, filename='scopus.qry', **kwargs):
+        super().__init__(filename, None, **kwargs)
+        self.docentes = docentes
+
+    def download(self, force=True, **kwargs):
+        filepath = self._get_filepath(**kwargs)
+        if not force and os.path.isfile(filepath):
+            return filepath
+        with self.docentes.open_csv(**kwargs) as docs, \
+             open(filepath, 'w', encoding='utf-8') as out:
+            ids = filter(bool, map(str.strip, map(lambda x: x['scopus_id'], docs)))
+            out.write(' OR '.join(map(lambda i: f'AU-ID({i})', ids)))
+        return filepath
+
+class ScopusWorks(InputDataset):
+    def __init__(self, qry, filename='scopus-works.csv', **kwargs):
+        super().__init__(filename, **kwargs)
+        self.qry = qry
+
+    def download(self, force=False, **kwargs):
+        filepath = self._get_filepath(**kwargs)
+        if not force and os.path.isfile(filepath):
+            return filepath
+        qry_filepath = self.qry.download(**kwargs)
+        with open(qry_filepath, 'r') as qry_f:
+           pyperclip.copy(qry_f.read())
+        msg = f'Submit the query string at {qry_filepath} to Scopus and ' + \
+              f'export the CSV to {filepath}. The query string has been ' + \
+              f'placed on your clipboard. In Scopus interface, select the ' + \
+              f'whole Citation Information and Bibliographical ' + \
+              f'Information columns.'
+        print(msg)
+        raise FileNotFoundError(errno.ENOENT,
+                                f'File {filepath} not found! ' + msg, filepath)
+                
     
 SUC_DISCENTES = {
     2018: SucupiraDataset('suc-dis-2018.csv.xz', 'https://dadosabertos.capes.gov.br/dataset/b7003093-4fab-4b88-b0fa-b7d8df0bcb77/resource/37fde9f4-bb94-4806-85d4-5d744f7f76ef/download/br-capes-colsucup-discentes-2018-2019-10-01.csv'),
@@ -246,3 +413,10 @@ SUC_DISCENTES = {
     
 PPGCC_CALENDAR = GoogleCalendar('calendar.json', 'ppgccnuvem@gmail.com')
 PPGCC_CALENDAR_CSV = GoogleCalendarCSV('calendar.csv', PPGCC_CALENDAR)
+
+DOCENTES = InputDataset('docentes.csv')
+SCHOLAR_CSV = Scholar(DOCENTES)
+SCHOLAR_WORKS_CSV = ScholarFile(SCHOLAR_CSV, suffix='-works')
+
+SCOPUS_QUERY = ScopusQuery(DOCENTES)
+SCOPUS_WORKS_CSV = ScopusWorks(SCOPUS_QUERY)
