@@ -129,7 +129,6 @@ class SucupiraProgram(Dataset):
                                         n not in self.FIELD_UPGRADES
                         fields += list(filter(is_novel, l_fields))
                 writer = csv.DictWriter(out, fieldnames=fields, delimiter=';')
-                print(f'fields={fields}')
                 writer.writeheader()
                 for k, v in self.year2dataset.items():
                     print(f'Filtering for program {self.program_code} in {v}')
