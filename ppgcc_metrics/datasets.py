@@ -27,6 +27,9 @@ class Dataset:
         self.csv_delim = csv_delim
         self.encoding = encoding
 
+    def __str__(self):
+        return self.filename
+
     def _get_filepath(self, directory=None, create_dir=True, **kwargs):
         directory = self.directory if directory == None else directory
         if not os.path.isdir(directory):
@@ -64,9 +67,6 @@ class InputDataset(Dataset):
     def __init__(self, filename, **kwargs):
         super().__init__(filename, None, **kwargs)
 
-    def __str__(self):
-        return self.filename
-
     def download(self, directory=None, **kwargs):
         filepath = self._get_filepath(directory=directory)
         if not os.path.isfile(filepath):
@@ -88,7 +88,7 @@ class SucupiraDataset(Dataset):
         with lzma.open(filepath+'.tmp', 'wt',
                        encoding='utf-8', newline='\r\n') as xz:
             for line in r.iter_lines(decode_unicode=True):
-                xz.write(line)
+                xz.write(line + '\n')
         os.replace(filepath+'.tmp', filepath)
         print(f'Downloaded {self.url} into {filepath}')
         return filepath
@@ -104,7 +104,7 @@ class SucupiraProgram(Dataset):
     
     def __init__(self, filename, program_code, year2dataset, **kwargs):
         super().__init__(filename, None, csv_delim=';', **kwargs)
-        self.program_code = program_code
+        self.program_code = str(program_code)
         self.year2dataset = year2dataset
 
     def upgrade_fields(self, d):
@@ -119,16 +119,24 @@ class SucupiraProgram(Dataset):
         if not os.path.isfile(filepath):
             with open(filepath, 'w', encoding='utf-8', newline='') as out:
                 writer = None
+                fields = []
                 l = list(self.year2dataset.keys())
                 l.sort()
-                with self.year2dataset[l[-1]].open(**kwargs) as f:
-                    fields = list(map(lambda x: x.strip(), f.readline().split(';')))
-                    writer = csv.DictWriter(out, fieldnames=fields, delimiter=';')
-                    writer.writeheader()
+                for y in l:
+                    with self.year2dataset[y].open(**kwargs) as f:
+                        l_fields = map(lambda x: x.strip(), f.readline().split(';'))
+                        is_novel = lambda n: n not in fields and \
+                                        n not in self.FIELD_UPGRADES
+                        fields += list(filter(is_novel, l_fields))
+                writer = csv.DictWriter(out, fieldnames=fields, delimiter=';')
+                print(f'fields={fields}')
+                writer.writeheader()
                 for k, v in self.year2dataset.items():
+                    print(f'Filtering for program {self.program_code} in {v}')
                     with v.open_csv(**kwargs) as in_csv:
                         for row in in_csv:
-                            matcher = lambda x: self.program_code in row[x]
+                            matcher = lambda x: isinstance(row[x], str) and \
+                                self.program_code in row[x]
                             if any(map(matcher, row.keys())):
                                 writer.writerow(self.upgrade_fields(row))
         return filepath        
@@ -410,6 +418,8 @@ SUC_DISCENTES = {
     2014: SucupiraDataset('suc-dis-2014.csv.xz', 'https://dadosabertos.capes.gov.br/dataset/dc2568b7-20b0-4d92-980d-dcf2485b5517/resource/3aa223ba-9c60-421a-91af-48ed843a9a98/download/br-capes-colsucup-discentes-2013a2016-2017-12-02_2014.csv'),
     2013: SucupiraDataset('suc-dis-2013.csv.xz', 'https://dadosabertos.capes.gov.br/dataset/dc2568b7-20b0-4d92-980d-dcf2485b5517/resource/89bcb419-5a11-46a1-804e-e9df8e4e6097/download/br-capes-colsucup-discentes-2013a2016-2017-12-02_2013.csv'),
 }
+
+SUC_DISCENTES_PPGCC = SucupiraProgram('suc-dis-ppgcc.csv', '41001010025', SUC_DISCENTES)
     
 PPGCC_CALENDAR = GoogleCalendar('calendar.json', 'ppgccnuvem@gmail.com')
 PPGCC_CALENDAR_CSV = GoogleCalendarCSV('calendar.csv', PPGCC_CALENDAR)
