@@ -39,7 +39,7 @@ class SucupiraTests(unittest.TestCase):
             prgm = datasets.SucupiraProgram('ppgcc.csv', '41001010025', y2ds)
             with prgm.open_csv(directory=d) as reader:
                 self.assertEqual(reader.fieldnames,
-                                 ['a', 'c', 'b', 'NM_ORIENTADOR_PRINCIPAL'])
+                                 ['a', 'b', 'c', 'NM_ORIENTADOR_PRINCIPAL'])
                 fieldcount = len(reader.fieldnames)
                 data = [x for x in reader]
                 self.assertEqual(len(data), 2)
