@@ -63,6 +63,29 @@ class Dataset:
         finally:
             f.close()
 
+    def _open(self, filepath, mode, **kwargs):
+        return open(filepath, mode, **kwargs)
+
+    @contextmanager
+    def replace_csv(self, **kwargs):
+        if 'newline' in kwargs:
+            del kwargs['newline']
+        fields = []
+        with self.open_csv(**kwargs) as r:
+            fields = r.fieldnames
+        directory = kwargs.get('directory')
+        directory = self.directory if directory == None else directory
+        filepath = os.path.join(directory, self.filename+'.tmp')
+        f = self._open(filepath, 'w', newline='')
+        w = csv.DictWriter(f, fieldnames=fields, delimiter=self.csv_delim)
+        try:
+            w.writeheader()
+            yield w
+        finally:
+            f.close()
+            os.replace(filepath, self._get_filepath(**kwargs))
+        
+
 class InputDataset(Dataset):
     def __init__(self, filename, **kwargs):
         super().__init__(filename, None, **kwargs)
@@ -94,8 +117,11 @@ class SucupiraDataset(Dataset):
         return filepath
 
     def open(self, **kwargs):
+        return self._open(self.download(**kwargs), 'r', **kwargs)
+
+    def _open(self, filepath, mode, **kwargs):
         newline = kwargs['newline'] if 'newline' in kwargs else None
-        return lzma.open(self.download(**kwargs), 'rt',
+        return lzma.open(filepath, mode+'t',
                          newline=newline, encoding='utf-8')
 
     

@@ -48,6 +48,20 @@ class SucupiraTests(unittest.TestCase):
                 self.assertEqual(data[0]['NM_ORIENTADOR_PRINCIPAL'], 'joão')
 
 
+    def testReplaceCSV(self):
+        with tempfile.TemporaryDirectory() as d:
+            with lzma.open(join(d, 'f.csv'), 'wt', newline='\r\n', \
+                           encoding='utf-8') as f:
+                f.write('a;b\n1;2\n')
+            ds = datasets.SucupiraDataset('f.csv', None, directory=d)
+            with ds.open_csv() as r:
+                self.assertEqual([dict(d) for d in r], [{'a':'1', 'b':'2'}])
+            with ds.replace_csv() as w:
+                w.writerow({'a':3, 'b':4})
+            with ds.open_csv() as r:
+                self.assertEqual([dict(d) for d in r], [{'a':'3', 'b':'4'}])
+
+
 class GoogleCalendarTests(unittest.TestCase):
     def setUp(self):
         self.key_file = datasets.SERVICE_ACCOUNT_FILE
@@ -211,6 +225,17 @@ class InputDatasetTests(unittest.TestCase):
                 data = [x for x in reader]
                 self.assertEqual(len(data), 1)
                 self.assertEqual(data[0]['b'], '2')
+
+    def testReplaceCSV(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(join(d, 'f.csv'), 'w', newline='\r\n') as f:
+                f.write('a,b\n1,2\n')
+            ds = datasets.InputDataset('f.csv')
+            with ds.replace_csv(directory=d) as w:
+                w.writerow({'a' : 3, 'b': 4})
+            with ds.open_csv(directory=d) as r:
+                self.assertEqual([dict(d) for d in r], [{'a': '3', 'b': '4'}])
+            
 
             
 if __name__ == '__main__':
