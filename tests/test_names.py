@@ -94,6 +94,11 @@ class CanonName(unittest.TestCase):
         self.assertEqual(None, n.canon_name('José Vander Gressi Carlos',
                                             'Jose Vinder Gresse Carlos',
                                             levenshtein=0))
+    def testTypoInLastNameCanonDecideByOrder(self):
+        a, b = 'Fulano Silveira', 'Fulano Silvera'
+        self.assertEqual(n.clean_name(a), n.canon_name(a, b, levenshtein_last=1))
+        self.assertEqual(n.clean_name(b), n.canon_name(b, a, levenshtein_last=1))
+        
 class CanonMapsTest(unittest.TestCase):
     def testEmpytLists(self):
         self.assertEqual(list(repeat(dict(), 2)), n.canon_maps([], []))

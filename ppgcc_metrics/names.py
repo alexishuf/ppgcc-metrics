@@ -54,11 +54,15 @@ def canon_maps(*args, allow_ambiguous=False, max_levenshtein=1,
                                  range(max_levenshtein_last+1)):
         for i in range(len(sets)):
             for nm in sets[i]:
-                get_p = lambda x: (x, canon_name(nm, x, levenshtein=lev, \
-                                              levenshtein_last=lev_last))
-                for j in range(i+1, len(sets)):
+                get_p = lambda x: (x, canon_name(nm if i < j else x, \
+                                            x  if i < j else nm, \
+                                            levenshtein=lev, \
+                                            levenshtein_last=lev_last))
+                for j in range(len(sets)):
+                    if j == i:
+                        continue
                     cands = list(filter(lambda p: p[1] != None, map(get_p, sets[j])))
-                    if (allow_ambiguous or len(cands) == 1) and cands[0][0] != nm:
+                    if len(cands) == 1 and cands[0][0] != nm:
                         x, c = cands[0]
                         assert c == nm or c == x
                         if c == nm:
@@ -68,9 +72,13 @@ def canon_maps(*args, allow_ambiguous=False, max_levenshtein=1,
                             if nm not in maps[i] or len(c) > len(maps[i][nm]):
                                 maps[i][nm] = c
                     if not allow_ambiguous and len(cands) > 1:
-                        for l in map(lambda p: sorted(p, key=len, reverse=True), \
-                                     zip(cycle([nm]), cands)):
-                            ambiguous.add(l[0])
+                        all_names = chain([nm], map(lambda p: p[0], cands))
+                        ambiguous.add(sorted(all_names, key=len)[0])
     for nm, m in filter(lambda p: p[0] in p[1], product(ambiguous, maps)):
         del m[nm]
     return maps
+
+def fix_csv_names(datasets, columns):
+    if len(datasets) !=  len(columns):
+        raise ValueError(f'fix_csv_names requires len(datasets) == len(columns)')
+    pass
