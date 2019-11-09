@@ -11,6 +11,7 @@ import json
 import googleapiclient.discovery
 import pyperclip
 from random import randint
+from ppgcc_metrics import names
 from time import sleep
 from contextlib import contextmanager
 from google.oauth2 import service_account
@@ -433,7 +434,39 @@ class ScopusWorks(InputDataset):
         print(msg)
         raise FileNotFoundError(errno.ENOENT,
                                 f'File {filepath} not found! ' + msg, filepath)
-                
+class CPCWorks(Dataset):
+    ID = '1vhjisGxmd17uwEqjhegcyo-yYnUnNGZVPhBPPeJbqZQ'
+    
+    def __init__(self, filename='cpc.csv', sheetId=None, \
+                 key_file=SERVICE_ACCOUNT_FILE, **kwargs):
+        super().__init__(filename, None, **kwargs)
+        sheetId = sheetId if sheetId != None else self.ID
+        self.sheetId = sheetId
+        self.credentials = service_account.Credentials.from_service_account_file(
+            key_file, scopes=['https://www.googleapis.com/auth/spreadsheets'])
+        self.service = googleapiclient.discovery.build('sheets', 'v4', \
+                                                       credentials=self.credentials)
+        self.sheets = self.service.spreadsheets()
+
+    def download(self, force=True, **kwargs):
+        filepath = self._get_filepath(**kwargs)
+        if not force and os.path.isfile(filepath):
+            return filepath
+        range_address = 'Artigos!A1:S20000'
+        ranges = self.sheets.values()\
+                             .batchGet(spreadsheetId=self.sheetId, \
+                                       majorDimension='ROWS', \
+                                       ranges=range_address) \
+                             .execute().get('valueRanges', [])
+        if len(ranges) < 1:
+            raise ValueError(f'Got no ranges from sheet {self.sheetId}. ' + \
+                             f'Asked for {range_address}')
+        rows = ranges[0].get('values')
+        with open(filepath, mode='w', newline='', encoding=self.encoding) as f:
+            writer = csv.writer(f)
+            for row in rows:
+                writer.writerow([x.replace('\n', ' ').strip() for x in row])
+        
     
 SUC_DISCENTES = {
     2018: SucupiraDataset('suc-dis-2018.csv.xz', 'https://dadosabertos.capes.gov.br/dataset/b7003093-4fab-4b88-b0fa-b7d8df0bcb77/resource/37fde9f4-bb94-4806-85d4-5d744f7f76ef/download/br-capes-colsucup-discentes-2018-2019-10-01.csv'),
@@ -455,3 +488,14 @@ SCHOLAR_WORKS_CSV = ScholarFile(SCHOLAR_CSV, suffix='-works')
 
 SCOPUS_QUERY = ScopusQuery(DOCENTES)
 SCOPUS_WORKS_CSV = ScopusWorks(SCOPUS_QUERY)
+
+def fix_all_names():
+    names.fix_csv_names([DOCENTES, PPGCC_CALENDAR_CSV],
+                        ['docente', 'orientador'], read_only=[0])
+    names.fix_csv_names([DOCENTES, PPGCC_CALENDAR_CSV],
+                        ['docente', 'coorientador'], read_only=[0])
+    names.fix_csv_names([DOCENTES, SUC_DISCENTES_PPGCC],
+                        ['docente', 'NM_ORIENTADOR_PRINCIPAL'], read_only=[0])
+    names.fix_csv_names([SUC_DISCENTES_PPGCC, PPGCC_CALENDAR_CSV],
+                        ['NM_DISCENTE', 'discente'], read_only=[0])
+    

@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from ppgcc_metrics import datasets
 import re
 from unidecode import unidecode
 from itertools import product, chain, cycle
@@ -78,7 +77,27 @@ def canon_maps(*args, allow_ambiguous=False, max_levenshtein=1,
         del m[nm]
     return maps
 
-def fix_csv_names(datasets, columns):
+def fix_csv_names(datasets, columns, read_only=[], **kwargs):
     if len(datasets) !=  len(columns):
         raise ValueError(f'fix_csv_names requires len(datasets) == len(columns)')
-    pass
+    sets = []
+    for ds, col in zip(datasets, columns):
+        with ds.open_csv() as reader:
+            sets.append({row[col] for row in reader})
+    c_maps = canon_maps(*sets, **kwargs)
+    del sets
+    in_datasets = datasets
+    if read_only != []:
+        datasets = list(datasets)
+        columns = list(columns)
+    for i in sorted(read_only, reverse=True):
+        del datasets[i]
+        del columns[i]
+        del c_maps[i]
+    for ds, col, c_map in zip(datasets, columns, c_maps):
+        with ds.replace_csv() as writer, ds.open_csv() as reader:
+            for row in reader:
+                n = row[col]
+                row[col] = c_map[n] if n in c_map else n
+                writer.writerow(row)
+    return in_datasets

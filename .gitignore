@@ -2,5 +2,5 @@ build
 *~
 *.pyc
 __pycache__
-
+data.*/
 service-account-key.json
