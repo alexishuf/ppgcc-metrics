@@ -201,7 +201,7 @@ class GoogleCalendar(Dataset):
     
 class GoogleCalendarCSV(Dataset):
     FIELDS = ['tipo', 'discente', 'orientador', 'coorientador', 'data_ymd']
-    RX_TYPE = re.compile(r'(?i)^\s*(Defesa|(?:Exame\s+(?:de)?\s+)?Qualifica\S+o|Semin\S+rio(?:\s*(?:de\s*)?andamento\s*)?|SAD|EQD|EQM)\s*(?:de)?\s*(Mestrado|Doutorado|)\s*(?:\((?:SAD|EQM|EQD)\))?\s*[-:]?\s*(.*)')
+    RX_TYPE = re.compile(r'(?i)^\s*(Defesa|(?:Exame\s+(?:de)?\s+)?Qualifica\S+o|Semin\S+rio(?:\s*(?:de\s*)?andamento\s*)?|SAD|EQD|EQM)\s*(?:de)?\s*(Mestrado|Doutorado|)\s*(?:\((?:SAD|EQM|EQD)\))?\s*(?:de|-|:)?\s*(.*)')
     RX_EATEN_NEWLINE = re.compile('(T\S+TULO|LOCAL|DATA(.*HORA)|(CO-?)ORIENTADORA?):?\s*$')
     RX_ORIENTADOR = re.compile(      r'(?i)ORIENTADORA?:\s*(?:prof.?\.?)?\s*(?:dr.?\.)?\s*((?:\w| )+)')
     RX_COORIENTADOR = re.compile(r'(?i)CO-?ORIENTADORA?:\s*(?:prof.?\.?)?\s*(?:dr.?\.)?\s*((?:\w| )+)')

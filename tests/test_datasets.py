@@ -113,6 +113,7 @@ class GoogleCalendarCSVTests(unittest.TestCase):
         self.assertEqual(get_d('Defesa de Mestrado - Fulano da Silva'), ex)
         self.assertEqual(get_d('Defesa de Mestrado - Fulano da Silvã'), ex)
         self.assertEqual(get_d('Defesa de Mestrado Fulano da Silva'), ex)
+        self.assertEqual(get_d('Defesa de Mestrado de Fulano da Silva'), ex)
         self.assertEqual(get_d('Defesa de Mestrado: Fulano  da Silva'), ex)
         self.assertEqual(get_d('Defesa de Mestrado: Fulano da Silva   '), ex)
         self.assertEqual(get_d('Defesa de Mestrado: Fúlano  da Silvã   '), ex)
@@ -136,6 +137,8 @@ class GoogleCalendarCSVTests(unittest.TestCase):
         self.assertEqual(get('Seminário de Andamento de Doutorado'), 'SAD')
         self.assertEqual(get('Seminário de Andamento Doutorado'), 'SAD')
         self.assertEqual(get('Seminário Andamento de Doutorado'), 'SAD')
+        self.assertEqual(get('Seminário Andamento de Doutorado - '), 'SAD')
+        self.assertEqual(get('Seminário Andamento de Doutorado de '), 'SAD')
         
         self.assertEqual(get('Exame de Qualificação de Mestrado (EQM)'), 'EQM')
         self.assertEqual(get('Qualificação de Mestrado (EQM)'), 'EQM')
