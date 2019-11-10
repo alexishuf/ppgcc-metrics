@@ -33,6 +33,8 @@ class CanonName(unittest.TestCase):
         self.assertEqual(None, n.canon_name(None, None))
     def testOneNone(self):
         self.assertEqual(None, n.canon_name('joão', None))
+    def testOneEmpty(self):
+        self.assertEqual(None, n.canon_name('joão', ''))
     def testEqual(self):
         self.assertEqual('JOAO', n.canon_name('joão', 'joão'))
     def testChangeCaps(self):
@@ -98,6 +100,9 @@ class CanonName(unittest.TestCase):
         self.assertEqual(None, n.canon_name('José Vander Gressi Carlos',
                                             'Jose Vinder Gresse Carlos',
                                             levenshtein=0))
+    def testAbbreviateMiddleName(self):
+        a, b = 'JOSE LUIS A. GUNTZEL', 'JOSE LUIS ALMADA GUNTZEL'
+        self.assertEqual(n.clean_name(b), n.canon_name(a, b))
     def testTypoInLastNameCanonDecideByOrder(self):
         a, b = 'Fulano Silveira', 'Fulano Silvera'
         self.assertEqual(n.clean_name(a), n.canon_name(a, b, levenshtein_last=1))

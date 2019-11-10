@@ -17,6 +17,12 @@ def safe_distance(a, b):
     b = RX_DOT.sub('', b)
     if a == b:
         return 0
+    if len(a) == 0 or len(b) == 0:
+        return max(len(a), len(b)) + 1
+    if a[0] == b[0] and len(a) == 1 and len(b) > 3:
+        return 0
+    if a[0] == b[0] and len(b) == 1 and len(a) > 3:
+        return 0
     if len(a) < 3 or len(b) < 3:
         return max(len(a), len(b)) + 1
     return distance(a, b)
@@ -47,6 +53,14 @@ def canon_name(x, y, levenshtein=0, levenshtein_last=None, large_last=7):
         if True not in ms:
             return None
         else:
+            sub = sub[ms.index(True)+1:]
+    sub = y[1:-1]
+    for i in range(1, len(x)-1):
+        ms = list(map(lambda u: safe_distance(u, x[i]) <= levenshtein, sub))
+        if True in ms:
+            cand_y = sub[ms.index(True)]
+            if len(RX_DOT.sub('', x[i])) == 1 and len(cand_y) > 1:
+                x[i] = cand_y
             sub = sub[ms.index(True)+1:]
     return ' '.join(x)
     

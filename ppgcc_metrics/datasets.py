@@ -203,8 +203,8 @@ class GoogleCalendarCSV(Dataset):
     FIELDS = ['tipo', 'discente', 'orientador', 'coorientador', 'data_ymd']
     RX_TYPE = re.compile(r'(?i)^\s*(Defesa|(?:Exame\s+(?:de)?\s+)?Qualifica\S+o|Semin\S+rio(?:\s*(?:de\s*)?andamento\s*)?|SAD|EQD|EQM)\s*(?:de)?\s*(Mestrado|Doutorado|)\s*(?:\((?:SAD|EQM|EQD)\))?\s*(?:de|-|:)?\s*(.*)')
     RX_EATEN_NEWLINE = re.compile('(T\S+TULO|LOCAL|DATA(.*HORA)|(CO-?)ORIENTADORA?):?\s*$')
-    RX_ORIENTADOR = re.compile(      r'(?i)ORIENTADORA?:\s*(?:prof.?\.?)?\s*(?:dr.?\.)?\s*((?:\w| )+)')
-    RX_COORIENTADOR = re.compile(r'(?i)CO-?ORIENTADORA?:\s*(?:prof.?\.?)?\s*(?:dr.?\.)?\s*((?:\w| )+)')
+    RX_ORIENTADOR = re.compile(      r'(?i)ORIENTADORA?:\s*(?:prof.?\.?)?\s*(?:dr.?\.)?\s*((?:\w| \w\.| )+)')
+    RX_COORIENTADOR = re.compile(r'(?i)CO-?ORIENTADORA?:\s*(?:prof.?\.?)?\s*(?:dr.?\.)?\s*((?:\w| \w\.| )+)')
     RX_DATA = re.compile(r'^([0-9]+-[0-9]+-[0-9]+)')
     RX_SPACE = re.compile(r'  +')
     
@@ -491,11 +491,15 @@ SCOPUS_WORKS_CSV = ScopusWorks(SCOPUS_QUERY)
 
 def fix_all_names():
     names.fix_csv_names([DOCENTES, PPGCC_CALENDAR_CSV],
-                        ['docente', 'orientador'], read_only=[0])
+                        ['docente', 'orientador'],
+                        read_only=[0], allow_ambiguous=True)
     names.fix_csv_names([DOCENTES, PPGCC_CALENDAR_CSV],
-                        ['docente', 'coorientador'], read_only=[0])
+                        ['docente', 'coorientador'],
+                        read_only=[0], allow_ambiguous=True)
     names.fix_csv_names([DOCENTES, SUC_DISCENTES_PPGCC],
-                        ['docente', 'NM_ORIENTADOR_PRINCIPAL'], read_only=[0])
+                        ['docente', 'NM_ORIENTADOR_PRINCIPAL'],
+                        read_only=[0], allow_ambiguous=True)
     names.fix_csv_names([SUC_DISCENTES_PPGCC, PPGCC_CALENDAR_CSV],
-                        ['NM_DISCENTE', 'discente'], read_only=[0])
+                        ['NM_DISCENTE', 'discente'],
+                        read_only=[0], allow_ambiguous=True)
     
