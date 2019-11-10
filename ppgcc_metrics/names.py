@@ -5,13 +5,23 @@ from itertools import product, chain, cycle
 from Levenshtein import distance
 
 RX_SPACE = re.compile(r'  +')
+RX_DOT = re.compile(r'\.\s*$')
 
 def clean_name(name):
     if name == None:
         return None
     return RX_SPACE.sub(' ', unidecode(name.strip()).upper())
 
-def canon_name(x, y, levenshtein=0, levenshtein_last=None):
+def safe_distance(a, b):
+    a = RX_DOT.sub('', a)
+    b = RX_DOT.sub('', b)
+    if a == b:
+        return 0
+    if len(a) < 3 or len(b) < 3:
+        return max(len(a), len(b)) + 1
+    return distance(a, b)
+
+def canon_name(x, y, levenshtein=0, levenshtein_last=None, large_last=7):
     if x == None or y == None:
         return None
     x, y = clean_name(x).split(' '), clean_name(y).split(' ')
@@ -19,9 +29,11 @@ def canon_name(x, y, levenshtein=0, levenshtein_last=None):
         return None
     if levenshtein_last == None:
         levenshtein_last = levenshtein
-    if distance(x[-1], y[-1]) > levenshtein_last:
+    if max(len(x[-1]), len(y[-1])) >= large_last:
+        levenshtein_last += 1
+    if safe_distance(x[-1], y[-1]) > levenshtein_last:
         return None
-    if distance(x[0], y[0]) > levenshtein:
+    if safe_distance(x[0], y[0]) > levenshtein:
         return None
     if len(y) > len(x):
         t = y
@@ -31,7 +43,7 @@ def canon_name(x, y, levenshtein=0, levenshtein_last=None):
         return ' '.join(x)
     sub = x[1:-1]
     for middle_name in y[1:-1]:
-        ms = list(map(lambda x: distance(x, middle_name) <= levenshtein, sub))
+        ms = list(map(lambda x: safe_distance(x, middle_name) <= levenshtein, sub))
         if True not in ms:
             return None
         else:

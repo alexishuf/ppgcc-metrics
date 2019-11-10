@@ -49,6 +49,10 @@ class CanonName(unittest.TestCase):
     def testTypoInLastNameLevenshteinLast(self):
         self.assertEqual('JOAO SILVA', n.canon_name('joão silva', 'João Silvo',
                                                     levenshtein_last=1))
+        self.assertEqual('LUCAS VIANA KNOCHENHAUER', \
+                         n.canon_name('LUCAS VIANA KNOCHENHAUER', \
+                                      'Lucas Viana Knochenhuaer', \
+                                      levenshtein_last=1))
     def testTypoInLastNameLevenshteinLast0(self):
         self.assertEqual(None, n.canon_name('joão silva', 'João Silvo',
                                             levenshtein=1,
@@ -98,6 +102,12 @@ class CanonName(unittest.TestCase):
         a, b = 'Fulano Silveira', 'Fulano Silvera'
         self.assertEqual(n.clean_name(a), n.canon_name(a, b, levenshtein_last=1))
         self.assertEqual(n.clean_name(b), n.canon_name(b, a, levenshtein_last=1))
+    def testAlwaysTolerateDots(self):
+        a, b = 'C. Leite', 'C Leite'
+        self.assertEqual(n.clean_name(a), n.canon_name(a, b))
+    def testNoLevInMiddleName(self):
+        a, b = 'C. Leite', 'D. Leite'
+        self.assertEqual(None, n.canon_name(a, b, levenshtein=1))
         
 class CanonMapsTest(unittest.TestCase):
     def testEmpytLists(self):
