@@ -434,8 +434,12 @@ class ScopusWorks(InputDataset):
         print(msg)
         raise FileNotFoundError(errno.ENOENT,
                                 f'File {filepath} not found! ' + msg, filepath)
+
 class CPCWorks(Dataset):
     ID = '1vhjisGxmd17uwEqjhegcyo-yYnUnNGZVPhBPPeJbqZQ'
+    RX_FIRST_SENTENCE = re.compile(r'(?i)(.*?\w\w+)\.')
+    RX_ABBBREVS = re.compile(r'(?i)^((?:\s*\w\w+)?(?:\s+\w[. ])*)\s*')
+    RX_HTML = re.compile(r'&\w+;')
     
     def __init__(self, filename='cpc.csv', sheetId=None, \
                  key_file=SERVICE_ACCOUNT_FILE, **kwargs):
@@ -448,6 +452,29 @@ class CPCWorks(Dataset):
                                                        credentials=self.credentials)
         self.sheets = self.service.spreadsheets()
 
+    def get_authors(self, text):
+        pieces = text.split(' . ')
+        if len(pieces) > 1:
+            return pieces[0]
+        text = self.RX_HTML.sub('', text)
+        pieces = text.split(';')
+        bad_pieces = list(map(lambda x: len(x) > 50, pieces))
+        if True in bad_pieces:
+            pieces = pieces[:bad_pieces.index(True)+1]
+            pieces[-1] = pieces[-1][:50]
+            m = self.RX_FIRST_SENTENCE.search(pieces[-1])
+            if m != None:
+                pieces[-1] = m.group(1)
+        pieces, extra = pieces[:-1], pieces[-1]
+        e_pieces = extra.split(',')[:2]
+        if len(e_pieces) < 2:
+            return ';'.join(pieces)
+        m = self.RX_ABBBREVS.search(e_pieces[1])
+        if m == None:
+            return ';'.join(pieces)
+        e_pieces[1] = m.group(1)
+        return '; '.join(pieces + [', '.join(e_pieces)])
+        
     def download(self, force=True, **kwargs):
         filepath = self._get_filepath(**kwargs)
         if not force and os.path.isfile(filepath):
@@ -462,10 +489,18 @@ class CPCWorks(Dataset):
             raise ValueError(f'Got no ranges from sheet {self.sheetId}. ' + \
                              f'Asked for {range_address}')
         rows = ranges[0].get('values')
+        artigo_idx = rows[0].index('Artigo')
+        header = rows[0][:artigo_idx] + ['autores'] + rows[0][artigo_idx:]
+        header = [x.replace('\n', ' ').strip() for x in header]
+        rows = rows[1:]
         with open(filepath, mode='w', newline='', encoding=self.encoding) as f:
             writer = csv.writer(f)
+            writer.writerow(header)
             for row in rows:
-                writer.writerow([x.replace('\n', ' ').strip() for x in row])
+                c_row = [x.replace('\n', ' ').strip() for x in row]
+                c_row = c_row[:artigo_idx ] + [self.get_authors(c_row[artigo_idx])] \
+                      + c_row[ artigo_idx:]
+                writer.writerow(c_row)
         
     
 SUC_DISCENTES = {
