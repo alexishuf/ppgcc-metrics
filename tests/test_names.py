@@ -113,6 +113,40 @@ class CanonName(unittest.TestCase):
     def testNoLevInMiddleName(self):
         a, b = 'C. Leite', 'D. Leite'
         self.assertEqual(None, n.canon_name(a, b, levenshtein=1))
+
+class IsAuthorTest(unittest.TestCase):
+    def testEmptyList(self):
+        self.assertFalse(n.is_author('Fulano da Silva', ''))
+    def testNoneList(self):
+        self.assertFalse(n.is_author('Fulano da Silva', None))
+    def testNoneAuthor(self):
+        self.assertFalse(n.is_author(None, 'SILVA, Fulano'))
+    def testSingleAuthor(self):
+        self.assertTrue(n.is_author('Fulano Silva', 'SILVA, Fulano'))
+    def testSingleAuthorIsFirst(self):
+        self.assertTrue(n.is_author('Fulano Silva', 'SILVA, Fulano', position=0))
+        self.assertTrue(n.is_author('Fulano Silva', 'SILVA, Fulano',
+                                    position='FIRST'))
+    def testSingleAuthorWithMiddleName(self):
+        self.assertTrue(n.is_author('Fulano da Silva', 'SILVA, Fulano'))
+        self.assertTrue(n.is_author('Fulano Silva', 'SILVA, Fulano D.'))
+        self.assertTrue(n.is_author('Fulano Silva', 'SILVA, Fulano D'))
+    def testFirstAuthorIsSecond(self):
+        l = 'SILVA, Fulano; COSTA, Siclano B.'
+        self.assertTrue(n.is_author('Siclano Costa', l))
+        self.assertTrue(n.is_author('Siclano Costa', l, position=1))
+        self.assertFalse(n.is_author('Siclano Costa', l, position=0))
+    def testNoComma(self):
+        l = 'Fulano da Silva; COSTA, Siclano B.'
+        self.assertTrue(n.is_author('Fulano Silva', l))
+        self.assertTrue(n.is_author('Fulano Silva', l, position=0))
+        self.assertFalse(n.is_author('Fulano Silva', l, position=1))
+    def testCustomSep(self):
+        l = 'Fulano da Silva e Costa, Beltrano'
+        self.assertFalse(n.is_author('Fulano Silva', l)) 
+        self.assertTrue(n.is_author('Fulano Silva', l, sep='e'))
+        self.assertTrue(n.is_author('Beltrano da Costa', l, sep='e'))
+        self.assertTrue(n.is_author('Beltrano da Costa', l))
         
 class CanonMapsTest(unittest.TestCase):
     def testEmpytLists(self):

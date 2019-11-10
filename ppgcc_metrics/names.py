@@ -67,6 +67,25 @@ def canon_name(x, y, levenshtein=0, levenshtein_last=None, large_last=7):
 def same_name(*args, **kwargs):
     return canon_name(*args, **kwargs) != None
 
+def is_author(name, author_list, position=None, sep=';', **kwargs):
+    if name == None or author_list == None:
+        return False
+    if position != None and str(position).upper() == 'FIRST':
+        position = 0
+    cands = []
+    for x in author_list.split(sep):
+        parts = x.strip().split(',')
+        if len(parts) == 1:
+            cands.append(parts[0])
+        elif len(parts) == 2:
+            cands.append(parts[1] + ' ' + parts[0])
+    if position != None:
+        if position >= len(cands):
+            return False
+        cands = [cands[position]]
+    return any(map(lambda c: same_name(name, c, **kwargs), cands))        
+    
+
 def canon_maps(*args, allow_ambiguous=False, max_levenshtein=1, 
                max_levenshtein_last=None):
     if max_levenshtein_last == None:
