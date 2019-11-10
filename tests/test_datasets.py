@@ -43,10 +43,52 @@ class SucupiraTests(unittest.TestCase):
                 fieldcount = len(reader.fieldnames)
                 data = [x for x in reader]
                 self.assertEqual(len(data), 2)
-                self.assertEqual([x['a'] for x in data], ['1', '3'])
-                self.assertEqual(data[0]['c'], '')
-                self.assertEqual(data[0]['NM_ORIENTADOR_PRINCIPAL'], 'joão')
+                self.assertEqual([x['a'] for x in data], ['3', '1'])
+                self.assertEqual(data[0]['c'], 'x')
+                self.assertEqual(data[1]['c'], '')
+                self.assertEqual(data[0]['NM_ORIENTADOR_PRINCIPAL'], 'fritz')
+                self.assertEqual(data[1]['NM_ORIENTADOR_PRINCIPAL'], 'joão')
 
+    def testMostRecentOnly(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.maxDiff = None
+            y2ds = {2013: datasets.SUC_DISCENTES[2013],
+                    2018: datasets.SUC_DISCENTES[2018]}
+            header = 'ID_PESSOA;CD_CONCEITO_CURSO;CD_PROGRAMA_IES;' + \
+                     'NM_SITUACAO_DISCENTE;DS_GRAU_ACADEMICO_DISCENTE\n'
+            with lzma.open(join(d, y2ds[2018].filename), 'wt') as f:
+                f.write(header +
+                        '1;5;41001010025P2;ABANDONOU;MESTRADO\n'   +
+                        '2;5;41001010025P2;MATRICULADO;MESTRADO\n' +
+                        '4;5;41001010025P2;MATRICULADO;MESTRADO\n' +
+                        '3;5;41001010025P2;TITULADO;MESTRADO\n'    +
+                        '6;5;41001010025P2;DESLIGADO;DOUTORADO\n')
+            with lzma.open(join(d, y2ds[2013].filename), 'wt') as f:
+                f.write(header + 
+                        '1;4;41001010025P2;MATRICULADO;MESTRADO\n' +
+                        '2;4;41001010025P2;MATRICULADO;MESTRADO\n' +
+                        '3;4;41001010025P2;MATRICULADO;MESTRADO\n' +
+                        '5;4;41001010025P2;TITULADO;MESTRADO\n'    +
+                        '5;4;41001010025P2;MATRICULADO;DOUTORADO\n'+
+                        '6;4;41001010025P2;TITULADO;MESTRADO\n')
+            prgm = datasets.SucupiraProgram('ppgcc.csv', '41001010025', y2ds)
+            with prgm.open_csv(directory=d) as reader:
+                data = [x for x in reader]
+                sub = [(x['ID_PESSOA'],
+                        x['CD_CONCEITO_CURSO'],
+                        x['NM_SITUACAO_DISCENTE'],
+                        x['DS_GRAU_ACADEMICO_DISCENTE']) for x in data]
+                ex = [
+                    ('1', '5', 'ABANDONOU',   'MESTRADO' ),
+                    ('2', '5', 'MATRICULADO', 'MESTRADO' ),
+                    ('4', '5', 'MATRICULADO', 'MESTRADO' ),
+                    ('3', '5', 'TITULADO',    'MESTRADO' ),
+                    ('6', '5', 'DESLIGADO',   'DOUTORADO'),
+                    ('5', '4', 'TITULADO',    'MESTRADO' ),
+                    ('5', '4', 'MATRICULADO', 'DOUTORADO'),
+                    ('6', '4', 'TITULADO',    'MESTRADO' )
+                ]
+                self.assertEqual(sub, ex)
 
     def testReplaceCSV(self):
         with tempfile.TemporaryDirectory() as d:

@@ -128,6 +128,8 @@ class SucupiraDataset(Dataset):
     
 class SucupiraProgram(Dataset):
     FIELD_UPGRADES = {'NM_ORIENTADOR' : 'NM_ORIENTADOR_PRINCIPAL'}
+    ID = 'ID_PESSOA'
+    GRAU = 'DS_GRAU_ACADEMICO_DISCENTE'
     
     def __init__(self, filename, program_code, year2dataset, **kwargs):
         super().__init__(filename, None, csv_delim=';', **kwargs)
@@ -157,7 +159,8 @@ class SucupiraProgram(Dataset):
                         fields += list(filter(is_novel, l_fields))
                 writer = csv.DictWriter(out, fieldnames=fields, delimiter=';')
                 writer.writeheader()
-                for k, v in self.year2dataset.items():
+                for k in sorted(l, reverse=True):
+                    v = self.year2dataset[k]
                     print(f'Filtering for program {self.program_code} in {v}')
                     with v.open_csv(**kwargs) as in_csv:
                         for row in in_csv:
@@ -165,6 +168,21 @@ class SucupiraProgram(Dataset):
                                 self.program_code in row[x]
                             if any(map(matcher, row.keys())):
                                 writer.writerow(self.upgrade_fields(row))
+            if self.GRAU in fields and self.ID in fields:
+                with open(filepath, 'r', encoding='utf-8', newline='') as in_f, \
+                     open(filepath+'.tmp', 'w', encoding='utf-8', newline='') \
+                         as out_f:
+                     reader = csv.DictReader(in_f, delimiter=';')
+                     raw = [x for x in reader]
+                     writer = csv.DictWriter(out_f, fieldnames=fields,
+                                             delimiter=';')
+                     writer.writeheader()
+                     for i in range(len(raw)):
+                         id_pessoa, grau = raw[i][self.ID], raw[i][self.GRAU]
+                         if not any(map(lambda x: x[self.ID]==id_pessoa and \
+                                        x[self.GRAU]==grau, raw[:i])):
+                             writer.writerow(raw[i])
+                os.replace(filepath+'.tmp', filepath)
         return filepath        
 
     
