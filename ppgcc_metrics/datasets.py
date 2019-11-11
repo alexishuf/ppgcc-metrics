@@ -10,7 +10,9 @@ import csv
 import json
 import googleapiclient.discovery
 import pyperclip
+from datetime import datetime
 from random import randint
+from itertools import chain, product
 from ppgcc_metrics import names
 from time import sleep
 from contextlib import contextmanager
@@ -111,7 +113,9 @@ class SucupiraDataset(Dataset):
         r.encoding = 'iso-8859-1'
         with lzma.open(filepath+'.tmp', 'wt',
                        encoding='utf-8', newline='\r\n') as xz:
+            na_rx = re.compile(';\s*N[AÃ]O +SE +APLICA\s*;')
             for line in r.iter_lines(decode_unicode=True):
+                line = na_rx.sub(';NA;', line)
                 xz.write(line + '\n')
         os.replace(filepath+'.tmp', filepath)
         print(f'Downloaded {self.url} into {filepath}')
@@ -127,7 +131,11 @@ class SucupiraDataset(Dataset):
 
     
 class SucupiraProgram(Dataset):
-    FIELD_UPGRADES = {'NM_ORIENTADOR' : 'NM_ORIENTADOR_PRINCIPAL'}
+    FIELD_UPGRADES = {
+        'NM_ORIENTADOR' : 'NM_ORIENTADOR_PRINCIPAL',
+        'TP_RACA_DISCENTE': 'NM_RACA_COR',
+        'IN_DEFICIENCIA': 'IN_NECESSIDADE_PESSOAL'
+    }
     ID = 'ID_PESSOA'
     GRAU = 'DS_GRAU_ACADEMICO_DISCENTE'
     
@@ -314,6 +322,7 @@ class Scholar(Dataset):
     MAIN_FIELDS = ['docente', 'scholar_id', 'documents', 'citations', \
                    'docs-citing', 'docs-citing-5', 'h-index', 'h5-index']
     WORKS_FIELDS = ['year', 'citations', 'authors', 'title', 'venue']
+    AUTHORS_FMT = {'sep' : ';', 'order' : 'FIRST_FIRST', 'super_compact': True}
     
     def __init__(self, docentes_dataset, basename='scholar',
                  delay_bounds_secs=(7, 27), short_fraction=4,
@@ -412,9 +421,12 @@ class ScholarFile(Dataset):
         filename = scholar.basename + suffix + '.csv'
         super().__init__(filename, None, **kwargs)
         self.scholar = scholar
+        if suffix == '-works':
+            self.FIELDS = Scholar.WORKS_FIELDS
+            self.AUTHORS_FMT = Scholar.AUTHORS_FMT
 
     def download(self, **kwargs):
-        self.scholar.dowload(**kwargs)
+        self.scholar.download(**kwargs)
         return self._get_filepath(**kwargs)
 
 class ScopusQuery(Dataset):
@@ -433,7 +445,11 @@ class ScopusQuery(Dataset):
         return filepath
 
 class ScopusWorks(InputDataset):
+    AUTHORS_FMT = {'sep' : ',', 'order' : 'LAST_FIRST'}
+        
     def __init__(self, qry, filename='scopus-works.csv', **kwargs):
+        if 'encoding' not in kwargs:
+            kwargs['encoding'] = 'utf-8-sig' #skip BOM
         super().__init__(filename, **kwargs)
         self.qry = qry
 
@@ -454,6 +470,7 @@ class ScopusWorks(InputDataset):
                                 f'File {filepath} not found! ' + msg, filepath)
 
 class CPCWorks(Dataset):
+    AUTHORS_FMT = {'sep' : ';', 'order' : ','}
     ID = '1vhjisGxmd17uwEqjhegcyo-yYnUnNGZVPhBPPeJbqZQ'
     RX_FIRST_SENTENCE = re.compile(r'(?i)(.*?\w\w+)\.')
     RX_ABBBREVS = re.compile(r'(?i)^((?:\s*\w\w+)?(?:\s+\w[. ])*)\s*')
@@ -519,8 +536,135 @@ class CPCWorks(Dataset):
                 c_row = c_row[:artigo_idx ] + [self.get_authors(c_row[artigo_idx])] \
                       + c_row[ artigo_idx:]
                 writer.writerow(c_row)
+
+
+def h_index(citations):
+    d = dict()
+    for number in citations:
+        for i in range(1, number+1):
+            d[i] = 1 + (d[i] if i in d else 0)
+    h = 0
+    for k, v in d.items():
+        if k > h and v >= k:
+            h = k
+    return h
+                
+class Bibliometrics(Dataset):
+    FIELDS = ['group', 'pub_year', 'base_year', 'source',
+              'h', 'h5', 'documents', 'citations']
+
+    def __init__(self, linhas, filename='bibliometrics-year.csv', \
+                 scopus=None, scholar=None, base_year=None, **kwargs):
+        super().__init__(filename, None, **kwargs)
+        self.linhas = linhas
+        self.scopus = scopus
+        self.scholar = scholar
+        self.base_year = base_year if base_year != None else datetime.now().year
+
+    def _get_fieldname(self, fieldnames, *args):
+        for name in args:
+            is_field = lambda x: x.strip().lower()==name.strip().lower()
+            f = next(chain(filter(is_field, fieldnames), [None]))
+            if f != None:
+                return f
+        raise ValueError(f'Could not find field for {name} in {fieldnames}')
+
+    def _write_metrics(self, group, source, rows, base, fields, dict_sink):
+
+        year_f = self._get_fieldname(fields, 'year')
+        cited_f = self._get_fieldname(fields, 'cited by', 'citations')
+        h = h_index([r[cited_f] for r in rows])
+        h5_years = range(base-5, base)
+        h5 = h_index([r[cited_f] for r in rows if r[year_f] in h5_years])
+        years = {r[year_f] for r in rows if r[year_f]}
+        # print(f'write_metrics({group}, {source}, years={min(years)}:{max(years)+1} h={h}, h5={h5}')
+        for year in range(min(years), max(years)+1):
+            sub = [x for x in rows if x[year_f] == year]
+            dict_sink({
+                'group': group, 'pub_year': year, 'base_year': base,
+                'source': source, 'documents' : len(sub),
+                'h'  : sum([1 for r in sub if r[cited_f] >= h ]),
+                'h5' : sum([1 for r in sub if r[cited_f] >= h5 and \
+                                              r[year_f] in h5_years]),
+                'citations': sum([r[cited_f] for r in sub])
+            })
+
+    def fetch_for(self, src_name, source_ds, base_year, dict_sink):
+        if source_ds == None:
+            return
+        with source_ds.open_csv() as reader:
+            fields = reader.fieldnames
+            year_f = self._get_fieldname(fields, 'year')
+            a_f = self._get_fieldname(fields, 'authors')
+            cited_f = self._get_fieldname(fields, 'cited by', 'citations')
+            rows = [x for x in reader]
+            for r in rows:
+                r[cited_f] = _tolerant_int(r[cited_f], empty=0)
+                r[year_f] = _tolerant_int(r[year_f])
+            self._write_metrics('all', src_name, rows, base_year,
+                                fields, dict_sink)
+            with self.linhas.open_csv() as linhas_reader:
+                linhas = [r for r in linhas_reader]
+                for group in {r['linha'].strip().lower() for r in linhas}:
+                    nms = [r['docente'] for r in linhas \
+                           if r['linha'].strip().lower() == group]
+                    fmt = source_ds.AUTHORS_FMT
+                    sub = [r for r in rows if any\
+                           (map(lambda d: names.is_author(d, r[a_f], **fmt), nms))]
+                    self._write_metrics(group, src_name, sub, \
+                                        base_year, fields, dict_sink)
         
+    def download(self, force=False, **kwargs):
+        filepath = self._get_filepath(directory=kwargs.get('directory'))
+        if not force and os.path.isfile(filepath):
+            return filepath
+        with open(filepath, 'w', newline='', encoding=self.encoding) as out_f:
+            writer = csv.DictWriter(out_f, fieldnames=self.FIELDS)
+            writer.writeheader()
+            scholar = kwargs.get('scholar', self.scholar)
+            scopus = kwargs.get('scopus', self.scopus)
+            base = kwargs.get('base_year', self.base_year)
+            self.fetch_for('scholar', scholar, base, writer.writerow)
+            self.fetch_for('scopus', scopus, base, writer.writerow)
+        return filepath
+
+class BibliometricsAggregate(Dataset):
+    FIELDS = ['group', 'base_year', 'source', 'h', 'h5',
+              'documents', 'citations', 'impact']
+    _NUMERIC_FIELDS = ['pub_year', 'h', 'h5', 'documents', 'citations']
     
+    def __init__(self, bibliometrics, filename='bibliometrics.csv', **kwargs):
+        super().__init__(filename, None, **kwargs)
+        self.bib = bibliometrics
+
+    def download(self, force=False, **kwargs):
+        filepath = self._get_filepath(directory=kwargs.get('directory'))
+        if not force and os.path.isfile(filepath):
+            return filepath
+        with self.bib.open_csv() as reader, \
+             open(filepath, 'w', newline='', encoding=self.encoding) as out_f:
+            out = csv.DictWriter(out_f, fieldnames=self.FIELDS)
+            out.writeheader()
+            data = [x for x in reader]
+            for r, c in product(data, self._NUMERIC_FIELDS):
+                r[c] = _tolerant_int(r[c], empty=0)
+            for g, s in {(r['group'], r['source']) for r in data}:
+                sub = [r for r in data if r['group']==g and r['source']==s]
+                row = {'group': g, 'source': s,
+                       'base_year': self.bib.base_year,
+                       'h' : sum([r['h' ] for r in sub]),
+                       'h5': sum([r['h5'] for r in sub]),
+                       'documents': sum([r['documents'] for r in sub]),
+                       'citations': sum([r['citations'] for r in sub]),
+                }
+                impact_years = range(self.bib.base_year-2, self.bib.base_year)
+                impact_sub = [r for r in sub if r['pub_year'] in impact_years]
+                row['impact'] = sum([r['citations'] for r in impact_sub]) \
+                              / sum([r['documents'] for r in impact_sub])
+                out.writerow(row)
+        return filepath
+        
+   
 SUC_DISCENTES = {
     2018: SucupiraDataset('suc-dis-2018.csv.xz', 'https://dadosabertos.capes.gov.br/dataset/b7003093-4fab-4b88-b0fa-b7d8df0bcb77/resource/37fde9f4-bb94-4806-85d4-5d744f7f76ef/download/br-capes-colsucup-discentes-2018-2019-10-01.csv'),
     2017: SucupiraDataset('suc-dis-2017.csv.xz', 'https://dadosabertos.capes.gov.br/dataset/b7003093-4fab-4b88-b0fa-b7d8df0bcb77/resource/2207af02-21f6-466e-a690-46f26a2804d6/download/ddi-br-capes-colsucup-discentes-2017-2018-07-01.csv'),
@@ -536,11 +680,17 @@ PPGCC_CALENDAR = GoogleCalendar('calendar.json', 'ppgccnuvem@gmail.com')
 PPGCC_CALENDAR_CSV = GoogleCalendarCSV('calendar.csv', PPGCC_CALENDAR)
 
 DOCENTES = InputDataset('docentes.csv')
+LINHAS = InputDataset('linhas.csv')
 SCHOLAR_CSV = Scholar(DOCENTES)
 SCHOLAR_WORKS_CSV = ScholarFile(SCHOLAR_CSV, suffix='-works')
 
 SCOPUS_QUERY = ScopusQuery(DOCENTES)
 SCOPUS_WORKS_CSV = ScopusWorks(SCOPUS_QUERY)
+
+BIBLIOMETRICS = Bibliometrics(LINHAS,
+                              scopus=SCOPUS_WORKS_CSV,
+                              scholar=SCHOLAR_WORKS_CSV)
+BIBLIOMETRICS_AGGREGATE = BibliometricsAggregate(BIBLIOMETRICS)
 
 def fix_all_names():
     names.fix_csv_names([DOCENTES, PPGCC_CALENDAR_CSV],
