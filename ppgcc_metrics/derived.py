@@ -21,10 +21,12 @@ class Bibliometrics(datasets.Dataset):
     FIELDS = ['group', 'pub_year', 'base_year', 'source',
               'h', 'h5', 'documents', 'citations']
 
-    def __init__(self, linhas, filename='bibliometrics-year.csv', \
+    def __init__(self, docentes, linhas, filename='bibliometrics-year.csv', \
                  scopus=None, scholar=None, base_year=None, **kwargs):
         super().__init__(filename, None, **kwargs)
-        self.linhas = linhas
+        self.docentes_ds = docentes
+        self.linhas_ds = linhas
+        self.linhas = None
         self.scopus = scopus
         self.scholar = scholar
         self.base_year = base_year if base_year != None else datetime.now().year
@@ -57,6 +59,16 @@ class Bibliometrics(datasets.Dataset):
                 'citations': sum([r[cited_f] for r in sub])
             })
 
+    def _get_linhas(self):
+        if not self.linhas:
+            with self.linhas_ds.open_csv() as linhas_reader, \
+                 self.docentes_ds.open_csv() as docs_reader:
+                docs = [r['docente'] for r in docs_reader \
+                        if r['status'].upper().strip()=='PERMANENTE']
+                self.linhas = [r for r in linhas_reader \
+                               if names.is_in(r['docente'], docs)]
+        return self.linhas
+
     def fetch_for(self, src_name, source_ds, base_year, dict_sink):
         if source_ds == None:
             return
@@ -71,16 +83,15 @@ class Bibliometrics(datasets.Dataset):
                 r[year_f] = datasets.tolerant_int(r[year_f])
             self._write_metrics('all', src_name, rows, base_year,
                                 fields, dict_sink)
-            with self.linhas.open_csv() as linhas_reader:
-                linhas = [r for r in linhas_reader]
-                for group in {r['linha'].strip().lower() for r in linhas}:
-                    nms = [r['docente'] for r in linhas \
-                           if r['linha'].strip().lower() == group]
-                    fmt = source_ds.AUTHORS_FMT
-                    sub = [r for r in rows if any\
-                           (map(lambda d: names.is_author(d, r[a_f], **fmt), nms))]
-                    self._write_metrics(group, src_name, sub, \
-                                        base_year, fields, dict_sink)
+            linhas = self._get_linhas()
+            for group in {r['linha'].strip().lower() for r in linhas}:
+                nms = [r['docente'] for r in linhas \
+                       if r['linha'].strip().lower() == group]
+                fmt = source_ds.AUTHORS_FMT
+                sub = [r for r in rows if any\
+                       (map(lambda d: names.is_author(d, r[a_f], **fmt), nms))]
+                self._write_metrics(group, src_name, sub, \
+                                    base_year, fields, dict_sink)
         
     def download(self, force=False, **kwargs):
         filepath = self._get_filepath(directory=kwargs.get('directory'))
@@ -132,7 +143,7 @@ class BibliometricsAggregate(datasets.Dataset):
                 out.writerow(row)
         return filepath
 
-BIBLIOMETRICS = Bibliometrics(datasets.LINHAS,
+BIBLIOMETRICS = Bibliometrics(datasets.DOCENTES, datasets.LINHAS,
                               scopus=datasets.SCOPUS_WORKS_CSV,
                               scholar=datasets.SCHOLAR_WORKS_CSV)
 BIBLIOMETRICS_AGGREGATE = BibliometricsAggregate(BIBLIOMETRICS)
