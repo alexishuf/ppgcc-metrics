@@ -104,6 +104,12 @@ class SucupiraTests(unittest.TestCase):
                 self.assertEqual([dict(d) for d in r], [{'a':'3', 'b':'4'}])
 
 class SucupiraDateTests(unittest.TestCase):
+    def testNone(self):
+        self.assertEqual(datasets.suc_date2iso(None), None)
+    def testEmpty(self):
+        self.assertEqual(datasets.suc_date2iso(''), '')
+    def testBad(self):
+        self.assertEqual(datasets.suc_date2iso('lero lero'), 'lero lero')
     def testMonthsNoSpace(self):
         self.assertEqual(datasets.suc_date2iso('24JAN2017'), '2017-01-24')
         self.assertEqual(datasets.suc_date2iso('24FEV2017'), '2017-02-24')
