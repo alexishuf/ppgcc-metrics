@@ -17,7 +17,7 @@ def h_index(citations):
             h = k
     return h
                 
-class Bibliometrics(Dataset):
+class Bibliometrics(datasets.Dataset):
     FIELDS = ['group', 'pub_year', 'base_year', 'source',
               'h', 'h5', 'documents', 'citations']
 
@@ -96,7 +96,7 @@ class Bibliometrics(Dataset):
             self.fetch_for('scopus', scopus, base, writer.writerow)
         return filepath
 
-class BibliometricsAggregate(Dataset):
+class BibliometricsAggregate(datasets.Dataset):
     FIELDS = ['group', 'base_year', 'source', 'h', 'h5',
               'documents', 'citations', 'impact']
     _NUMERIC_FIELDS = ['pub_year', 'h', 'h5', 'documents', 'citations']
@@ -132,7 +132,7 @@ class BibliometricsAggregate(Dataset):
                 out.writerow(row)
         return filepath
 
-BIBLIOMETRICS = Bibliometrics(LINHAS,
-                              scopus=SCOPUS_WORKS_CSV,
-                              scholar=SCHOLAR_WORKS_CSV)
+BIBLIOMETRICS = Bibliometrics(datasets.LINHAS,
+                              scopus=datasets.SCOPUS_WORKS_CSV,
+                              scholar=datasets.SCHOLAR_WORKS_CSV)
 BIBLIOMETRICS_AGGREGATE = BibliometricsAggregate(BIBLIOMETRICS)

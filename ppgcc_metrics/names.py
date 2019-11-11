@@ -49,7 +49,7 @@ def _parse_super_compact(name):
     return name
 
 def canon_name(x, y, levenshtein=0, levenshtein_last=None,
-               super_compact=False, large_last=7):
+               super_compact=False, large_last=7, **ignored):
     '''Returns the canononical name between x and y
     Named arguments:
       - levenshtein: Maximum levenshtein distance for non-last names
@@ -101,16 +101,11 @@ def canon_name(x, y, levenshtein=0, levenshtein_last=None,
 def same_name(*args, **kwargs):
     return canon_name(*args, **kwargs) != None
 
-def is_author(name, author_list, position=None, sep=';', order=',', **kwargs):
-    '''Return True if name is in the given author_list
-    
-    Arguments:
-      - name: the name to look for, in FIRST_FIRST order (see order below)
-      - author_list: a string containing a list of names
-      - position: None (default), int or 'FIRST'.
-                  Only return True if name is the position-th author
-                  If None, any position in the list suffices
-                  FIRST has the same meaning as 0
+
+def parse_authors(author_list, sep=';', order=',', **ignored):
+    '''Get a list of author names in FIRST_FIRST order from a string
+
+    Named arguments:
       - sep: separator of the author list
       - order: Name order in the author list. In all cases, all names except 
                the last may be abbreviated and, if abbreviated, optionally 
@@ -118,36 +113,64 @@ def is_author(name, author_list, position=None, sep=';', order=',', **kwargs):
                - ',' (default): LastName, FirstName SecondName
                - 'LAST_FIRST': LastName FirstName SecondName
                - 'FIRST_FIRST': FirstName SecondName LastName
-      - **kwargs: Furhter named arguments are forwarded to same_name()
     '''
-    if name == None or author_list == None:
-        return False
     if order.upper() not in [',', 'LAST_FIRST', 'FIRST_FIRST']:
         raise ValueError(f'Unexpected order: {order}')
     if sep == order:
         raise ValueError(f'sep==order ({sep}=={order}) is ambiguous')
+    result = []
+    for x in author_list.split(sep):
+        if order in ['LAST_FIRST', 'FIRST_FIRST']:
+            if order == 'LAST_FIRST':
+                x = RX_LAST_FIRST.sub(r'\2 \1', x.strip())
+            result.append(x)
+        else:
+            parts = x.strip().split(order)
+            if len(parts) == 1:
+                result.append(parts[0])
+            elif len(parts) == 2:
+                result.append(parts[1] + ' ' + parts[0])
+    return result
+
+def is_author(name, author_list, position=None, sep=';', order=',', **kwargs):
+    '''Return True if name is in the given author_list
+    
+    Arguments:
+      - name: the name to look for, in FIRST_FIRST order (see parse_authors)
+      - author_list: a string containing a list of names
+      - position: None (default), int or 'FIRST'.
+                  Only return True if name is the position-th author
+                  If None, any position in the list suffices
+                  FIRST has the same meaning as 0
+      - sep: See parse_authors
+      - order: See parse_authors
+      - **kwargs: Furhter named arguments are forwarded to same_name()
+    '''
+    if name == None or author_list == None:
+        return False
     if position != None:
         position = str(position).strip()
         if not re.match(r'(?i)FIRST|\d+$', position):
             raise ValueError(f'Bad position: {position}')
         position = 0 if position == 'FIRST' else int(position)
-    cands = []
-    for x in author_list.split(sep):
-        if order in ['LAST_FIRST', 'FIRST_FIRST']:
-            if order == 'LAST_FIRST':
-                x = RX_LAST_FIRST.sub(r'\2 \1', x.strip())
-            cands.append(x)
-        else:
-            parts = x.strip().split(order)
-            if len(parts) == 1:
-                cands.append(parts[0])
-            elif len(parts) == 2:
-                cands.append(parts[1] + ' ' + parts[0])
+    cands = parse_authors(author_list, sep=sep, order=order)
     if position != None:
         if position >= len(cands):
             return False
         cands = [cands[position]]
-    return any(map(lambda c: same_name(name, c, **kwargs), cands))        
+    return any(map(lambda c: same_name(name, c, **kwargs), cands))
+
+def same_authors(a, b, allow_extras=False, **kwargs):
+    if a == b:
+        return True
+    if a == None or b == None:
+        return False
+    l_a, l_b = parse_authors(a, **kwargs), parse_authors(b, **kwargs)
+    if not allow_extras and len(l_a) != len(l_b):
+        return False
+    if any(map(lambda p: not same_name(p[0], p[1], **kwargs), zip(l_a, l_b))):
+        return False
+    return True
 
 def is_in(name, iterable, allow_ambiguous=True, **kwargs):
     matcher = lambda x: same_name(name, x, **kwargs)

@@ -174,7 +174,34 @@ class IsAuthorTest(unittest.TestCase):
         self.assertTrue(n.is_author('Aldo Wangenheim', l, **fmt))
         self.assertFalse(n.is_author('Aldo Wangenheim', l,
                                      position='FIRST', **fmt))
-        
+
+class SameAuthorsTest(unittest.TestCase):
+    def testNone(self):
+        self.assertTrue(n.same_authors(None, None))
+    def testSingleNone(self):
+        self.assertFalse(n.same_authors('Doe, John', None))
+        self.assertFalse(n.same_authors(None, 'John Doe'))
+    def testSingleAuthor(self):
+        self.assertTrue(n.same_authors('Doe, J.', 'Doe, John'))
+        self.assertFalse(n.same_authors('Doe, Jane', 'Doe, John'))
+    def testTwoAuthorsScholar(self):
+        fmt = {'sep': ';', 'order': 'FIRST_FIRST', 'super_compact': True}
+        self.assertTrue(n.same_authors('XL Hu; KJ Il', 'XL Hu; KJ Il', **fmt))
+        self.assertFalse(n.same_authors('XL Hu; KJ Il', 'XL Hu; KJ Un', **fmt))
+        self.assertFalse(n.same_authors('XL Hu; KJ Il', 'XL Hu', **fmt))
+    def testAllowExtraScopus(self):
+        fmt = {'sep': ',', 'order': 'LAST_FIRST'}
+        self.assertTrue(n.same_authors('Huf A., Siqueira F.',
+                                       'Huf A., Siqueira F.', **fmt))
+        self.assertTrue(n.same_authors('Huf A., Siqueira F.',
+                                       'Huf A., Siqueira F., Salvadori I.L.',
+                                       allow_extras=True, **fmt))
+        self.assertTrue(n.same_authors('Huf A., Siqueira F., Salvadori I.L.',
+                                       'Huf A., Siqueira F.',
+                                       allow_extras=True, **fmt))
+        self.assertFalse(n.same_authors('Huf A., Siqueira F., Salvadori I.L.',
+                                       'Huf A., Siqueira F.',
+                                        allow_extras=False, **fmt))
         
 class CanonMapsTest(unittest.TestCase):
     def testEmpytLists(self):
