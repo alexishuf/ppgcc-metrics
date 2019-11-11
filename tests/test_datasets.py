@@ -103,6 +103,38 @@ class SucupiraTests(unittest.TestCase):
             with ds.open_csv() as r:
                 self.assertEqual([dict(d) for d in r], [{'a':'3', 'b':'4'}])
 
+class SucupiraDateTests(unittest.TestCase):
+    def testMonthsNoSpace(self):
+        self.assertEqual(datasets.suc_date2iso('24JAN2017'), '2017-01-24')
+        self.assertEqual(datasets.suc_date2iso('24FEV2017'), '2017-02-24')
+        self.assertEqual(datasets.suc_date2iso('24MAR2017'), '2017-03-24')
+        self.assertEqual(datasets.suc_date2iso('24ABR2017'), '2017-04-24')
+        self.assertEqual(datasets.suc_date2iso('24MAI2017'), '2017-05-24')
+        self.assertEqual(datasets.suc_date2iso('24JUN2017'), '2017-06-24')
+        self.assertEqual(datasets.suc_date2iso('24JUL2017'), '2017-07-24')
+        self.assertEqual(datasets.suc_date2iso('24AGO2017'), '2017-08-24')
+        self.assertEqual(datasets.suc_date2iso('24SET2017'), '2017-09-24')
+        self.assertEqual(datasets.suc_date2iso('24OUT2017'), '2017-10-24')
+        self.assertEqual(datasets.suc_date2iso('24NOV2017'), '2017-11-24')
+        self.assertEqual(datasets.suc_date2iso('24DEZ2017'), '2017-12-24')
+    def testFirstDay(self):
+        self.assertEqual(datasets.suc_date2iso('01DEZ2018'), '2018-12-01')
+        self.assertEqual(datasets.suc_date2iso('1DEZ2018'), '2018-12-01')
+    def testBugOfTheMillenium(self):
+        self.assertEqual(datasets.suc_date2iso('01DEZ18'), '2018-12-01')
+        self.assertEqual(datasets.suc_date2iso('1DEZ18'), '2018-12-01')
+    def testSeparators(self):
+        self.assertEqual(datasets.suc_date2iso('01-DEZ-2018'), '2018-12-01')
+        self.assertEqual(datasets.suc_date2iso('01.DEZ.2018'), '2018-12-01')
+        self.assertEqual(datasets.suc_date2iso('01 DEZ 2018'), '2018-12-01')
+    def testEnglishMonths(self):
+        self.assertEqual(datasets.suc_date2iso('01-FEB-2018'), '2018-02-01')
+        self.assertEqual(datasets.suc_date2iso('01-APR-2018'), '2018-04-01')
+        self.assertEqual(datasets.suc_date2iso('01-MAY-2018'), '2018-05-01')
+        self.assertEqual(datasets.suc_date2iso('01-AUG-2018'), '2018-08-01')
+        self.assertEqual(datasets.suc_date2iso('01-SEP-2018'), '2018-09-01')
+        self.assertEqual(datasets.suc_date2iso('01-OCT-2018'), '2018-10-01')
+        self.assertEqual(datasets.suc_date2iso('01-DEC-2018'), '2018-12-01')
 
 class GoogleCalendarTests(unittest.TestCase):
     def setUp(self):

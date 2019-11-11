@@ -10,7 +10,7 @@ import csv
 import json
 import googleapiclient.discovery
 import pyperclip
-from datetime import datetime
+from datetime import datetime, date
 from random import randint
 from itertools import chain, product
 from ppgcc_metrics import names
@@ -138,6 +138,20 @@ class SucupiraDataset(Dataset):
         return lzma.open(filepath, mode+'t',
                          newline=newline, encoding='utf-8')
 
+RX_SUC_DATE = re.compile(r'^(?i)\s*(\d?\d)[. -]?([a-z]+)[- .]?(\d+)(\D|$)')
+SUC_MONTHS_PT = ['', 'JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN',
+                     'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ']
+def suc_date2iso(suc_date):
+    m = RX_SUC_DATE.search(suc_date)
+    if m != None:
+        year = int(m.group(3) if len(m.group(3)) == 4 else '20'+m.group(3))
+        month = m.group(2).upper().strip()[:3]
+        if month in SUC_MONTHS_PT:
+            month = SUC_MONTHS_PT.index(month)
+        else:
+            month = datetime.strptime(month, '%b').month
+        return date(year, month, int(m.group(1))).strftime('%Y-%m-%d')
+    
     
 class SucupiraProgram(Dataset):
     FIELD_UPGRADES = {
