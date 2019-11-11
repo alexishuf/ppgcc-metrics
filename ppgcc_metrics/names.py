@@ -6,6 +6,7 @@ from Levenshtein import distance
 
 RX_SPACE = re.compile(r'  +')
 RX_DOT = re.compile(r'\.\s*$')
+RX_LAST_FIRST = re.compile(r'\s*(\S+)\s+(.*)')
 
 def clean_name(name):
     if name == None:
@@ -27,10 +28,41 @@ def safe_distance(a, b):
         return max(len(a), len(b)) + 1
     return distance(a, b)
 
-def canon_name(x, y, levenshtein=0, levenshtein_last=None, large_last=7):
+def _subsplit(string, outer_sep, inner_sep, keep_inner='LEFT'):
+    result = []
+    for outer in string.split(outer_sep):
+        parts = outer.split(inner_sep)
+        if keep_inner.upper() == 'LEFT':
+            parts = [x+inner_sep for x in parts]
+            parts[-1] = parts[-1][:-len(inner_sep)]
+        elif keep_inner.upper() == 'RIGHT':
+            parts = [inner_sep+x for x in parts]
+            parts[0] = parts[0][len(inner_sep):]
+        result += list(filter(len, parts))
+    return result
+
+RX_SUPER_COMPACT = re.compile(r'^\s*([A-Z][A-Z]+)\s+(.*[a-z].*)$')
+def _parse_super_compact(name):
+    m = RX_SUPER_COMPACT.search(name)
+    if m != None:
+        return '. '.join(m.group(1)) + '. ' + m.group(2)
+    return name
+
+def canon_name(x, y, levenshtein=0, levenshtein_last=None,
+               super_compact=False, large_last=7):
+    '''Returns the canononical name between x and y
+    Named arguments:
+      - levenshtein: Maximum levenshtein distance for non-last names
+      - levenshtein_last: Maximum levenshtein distance for last names
+      - super_compact: Read JP Doe as J. P. Doe
+      - large_last: Only apply levenshtein_last if last name is larger than this
+    '''
     if x == None or y == None:
         return None
-    x, y = clean_name(x).split(' '), clean_name(y).split(' ')
+    if super_compact:
+        x, y = _parse_super_compact(x), _parse_super_compact(y)
+    x = _subsplit(clean_name(x), ' ', '.', keep_inner='LEFT')
+    y = _subsplit(clean_name(y), ' ', '.', keep_inner='LEFT')
     if len(x) == 0 or len(y) == 0:
         return None
     if levenshtein_last == None:
@@ -41,6 +73,8 @@ def canon_name(x, y, levenshtein=0, levenshtein_last=None, large_last=7):
         return None
     if safe_distance(x[0], y[0]) > levenshtein:
         return None
+    if len(RX_DOT.sub('', x[0])) == 1 and len(y[0]) > 1:
+        x[0] = y[0]
     if len(y) > len(x):
         t = y
         y = x
@@ -67,24 +101,58 @@ def canon_name(x, y, levenshtein=0, levenshtein_last=None, large_last=7):
 def same_name(*args, **kwargs):
     return canon_name(*args, **kwargs) != None
 
-def is_author(name, author_list, position=None, sep=';', **kwargs):
+def is_author(name, author_list, position=None, sep=';', order=',', **kwargs):
+    '''Return True if name is in the given author_list
+    
+    Arguments:
+      - name: the name to look for, in FIRST_FIRST order (see order below)
+      - author_list: a string containing a list of names
+      - position: None (default), int or 'FIRST'.
+                  Only return True if name is the position-th author
+                  If None, any position in the list suffices
+                  FIRST has the same meaning as 0
+      - sep: separator of the author list
+      - order: Name order in the author list. In all cases, all names except 
+               the last may be abbreviated and, if abbreviated, optionally 
+               separated by spaces. Valid values:
+               - ',' (default): LastName, FirstName SecondName
+               - 'LAST_FIRST': LastName FirstName SecondName
+               - 'FIRST_FIRST': FirstName SecondName LastName
+      - **kwargs: Furhter named arguments are forwarded to same_name()
+    '''
     if name == None or author_list == None:
         return False
-    if position != None and str(position).upper() == 'FIRST':
-        position = 0
+    if order.upper() not in [',', 'LAST_FIRST', 'FIRST_FIRST']:
+        raise ValueError(f'Unexpected order: {order}')
+    if sep == order:
+        raise ValueError(f'sep==order ({sep}=={order}) is ambiguous')
+    if position != None:
+        position = str(position).strip()
+        if not re.match(r'(?i)FIRST|\d+$', position):
+            raise ValueError(f'Bad position: {position}')
+        position = 0 if position == 'FIRST' else int(position)
     cands = []
     for x in author_list.split(sep):
-        parts = x.strip().split(',')
-        if len(parts) == 1:
-            cands.append(parts[0])
-        elif len(parts) == 2:
-            cands.append(parts[1] + ' ' + parts[0])
+        if order in ['LAST_FIRST', 'FIRST_FIRST']:
+            if order == 'LAST_FIRST':
+                x = RX_LAST_FIRST.sub(r'\2 \1', x.strip())
+            cands.append(x)
+        else:
+            parts = x.strip().split(order)
+            if len(parts) == 1:
+                cands.append(parts[0])
+            elif len(parts) == 2:
+                cands.append(parts[1] + ' ' + parts[0])
     if position != None:
         if position >= len(cands):
             return False
         cands = [cands[position]]
     return any(map(lambda c: same_name(name, c, **kwargs), cands))        
-    
+
+def is_in(name, iterable, allow_ambiguous=True, **kwargs):
+    matcher = lambda x: same_name(name, x, **kwargs)
+    matches = len(list(filter(bool, map(matcher, iterable))))
+    return matches == 1 or (allow_ambiguous and matches >= 1)
 
 def canon_maps(*args, allow_ambiguous=False, max_levenshtein=1, 
                max_levenshtein_last=None):

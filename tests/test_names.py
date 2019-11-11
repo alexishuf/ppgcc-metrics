@@ -113,6 +113,10 @@ class CanonName(unittest.TestCase):
     def testNoLevInMiddleName(self):
         a, b = 'C. Leite', 'D. Leite'
         self.assertEqual(None, n.canon_name(a, b, levenshtein=1))
+    def testAbbrevNoSpaces(self):
+        a, b = 'L.O. Silva', 'Luis Otavio Silva'
+        self.assertEqual(n.clean_name(b), n.canon_name(a, b))
+        self.assertEqual(n.clean_name(b), n.canon_name(b, a))
 
 class IsAuthorTest(unittest.TestCase):
     def testEmptyList(self):
@@ -147,6 +151,30 @@ class IsAuthorTest(unittest.TestCase):
         self.assertTrue(n.is_author('Fulano Silva', l, sep='e'))
         self.assertTrue(n.is_author('Beltrano da Costa', l, sep='e'))
         self.assertTrue(n.is_author('Beltrano da Costa', l))
+    def testScopus(self):
+        l = 'Barros-Justo J.L., Benitti F.B.V., Tiwari S.'
+        self.assertTrue(n.is_author('Jose Luis Barros-Justo', l,
+                                    sep=',', order='LAST_FIRST'))
+        self.assertTrue(n.is_author('Jose Luis Barros-Justo', l, position=0,
+                                    sep=',', order='LAST_FIRST'))
+        self.assertFalse(n.is_author('Jose Luis Barros-Justo', l, position=1,
+                                     sep=',', order='LAST_FIRST'))
+        self.assertTrue(n.is_author('Sidharta Tiwari', l,
+                                    sep=',', order='LAST_FIRST'))
+        self.assertFalse(n.is_author('Sidharta Tiwari', l, position='FIRST',
+                                     sep=',', order='LAST_FIRST'))
+    def testScholar(self):
+        fmt = {'sep': ';', 'order': 'FIRST_FIRST', 'super_compact': True}
+        l = 'CG Von Wangenheim; A Von Wangenheim'
+        self.assertTrue(n.is_author('Cris Gresse Wangenheim', l, **fmt))
+        self.assertTrue(n.is_author('Cris Gresse Wangenheim', l,
+                                    position=0, **fmt))
+        self.assertFalse(n.is_author('Cris Gresse Wangenheim', l,
+                                     position=1, **fmt))
+        self.assertTrue(n.is_author('Aldo Wangenheim', l, **fmt))
+        self.assertFalse(n.is_author('Aldo Wangenheim', l,
+                                     position='FIRST', **fmt))
+        
         
 class CanonMapsTest(unittest.TestCase):
     def testEmpytLists(self):
