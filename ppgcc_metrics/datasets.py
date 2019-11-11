@@ -432,7 +432,7 @@ class Scholar(Dataset):
             for r in reader:
                 k = (r['authors'], simplify_title(r['title']))
                 is_same = lambda p: p[1]==k[1] or \
-                               names.same_authors(p[0], k[0], **AUTHORS_FMT)
+                               names.same_authors(p[0], k[0], **self.AUTHORS_FMT)
                 if not any(map(is_same, visited)):
                     visited.append(k)
                     writer.writerow(r)
