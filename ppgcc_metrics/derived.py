@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+import os
 import os.path
 import re
 import csv
-from datetime import datetime
+from unidecode import unidecode
+from datetime import datetime, date
 from itertools import chain, product
 from ppgcc_metrics import names, datasets
 
@@ -142,8 +144,116 @@ class BibliometricsAggregate(datasets.Dataset):
                               / sum([r['documents'] for r in impact_sub])
                 out.writerow(row)
         return filepath
+    
+class AugmentedDiscentes(datasets.Dataset):
+    EXTRA_FIELDS = ['DT_MATRICULA_ISO', 'DT_SITUACAO_ISO',
+                    'N_CONF', 'N_PER',
+                    'PTS_CONF', 'PTS_PER', 'PTS_CONF_IR', 'PTS_PER_IR',
+                    'ST_REQ_PUB']
+    SICLAP_WEIGHT = {
+        'A1': 1,
+        'A2': 0.85,
+        'B1': 0.70,
+        'B2': 0.55,
+        'B3': 0.40,
+        'B4': 0.25,
+        'B5': 0.10,
+    }
+    IR_WEIGHT = SICLAP_WEIGHT['B1']
+    __PUB_TYPE_STR = {'CONF': 'eve', 'PER': 'per'}
+    
+    def __init__(self, sucupira, cpc, filename='discentes-augmented.csv', **kwargs):
+        kwargs['csv_delim'] = kwargs.get('csv_delim', sucupira.csv_delim)
+        super().__init__(filename, None, **kwargs)
+        self.sucupira = sucupira
+        self.cpc = cpc
+        self.cpc_data = None
+
+    def weight(self, cpc_row):
+        return self.SICLAP_WEIGHT.get(cpc_row['SICLAP'].upper().strip(), 0)
+
+    def has_pub_type(self, cpc_row, pub_type):
+        if pub_type == None:
+            return True
+        return unidecode(cpc_row['Tipo'].strip()).lower()[:3] \
+            == self.__PUB_TYPE_STR.get(pub_type)
+        
+    def get_works(self, dis, pub_type, min_weight=None,
+                  bump_year=False, position=None):
+        if pub_type != None:
+            pub_type = pub_type.strip().upper()
+            if pub_type not in self.__PUB_TYPE_STR:
+                raise ValueError(f'Bad publication type {pub_type}')
+        if not self.cpc_data:
+            with self.cpc.open_csv() as reader:
+                self.cpc_data = [x for x in reader]
+        fmt = self.cpc.AUTHORS_FMT
+        nm = dis['NM_DISCENTE']
+        start = datetime.strptime(dis['DT_MATRICULA_ISO'], '%Y-%m-%d').year
+        if bump_year:
+            start += 1
+        return [r for r in self.cpc_data if \
+                names.is_author(nm, r['autores'], position=position, **fmt) and \
+                self.has_pub_type(r, pub_type) and \
+                (min_weight==None or self.weight(r) >= min_weight)]
+
+    def has_req_pub(self, dis):
+        '''Art. 23 do regulamento do PPGCC'''
+        grau = dis['DS_GRAU_ACADEMICO_DISCENTE'].strip().upper()
+        b3, b2 = self.SICLAP_WEIGHT['B3'], self.SICLAP_WEIGHT['B2']
+        b1     = self.SICLAP_WEIGHT['B1']
+        if grau == 'MESTRADO':
+            return bool(len(self.get_works(dis, None, min_weight=b3, position=0)))
+        elif grau == 'DOUTORADO':
+            enroll = datetime.strptime(dis['DT_MATRICULA_ISO'], '%Y-%m-%d').year
+            works  = self.get_works(dis, 'CONF', min_weight=b3, position=0)
+            works += self.get_works(dis, 'PER',  min_weight=b3, position=0, \
+                                    bump_year=True)
+            ok_2016 = bool(len(works) >= 2 and \
+                      any(filter(lambda r: self.weight(r) >= b2, works)))
+            if enroll < 2016 or not ok_2016:
+                return ok_2016
+            return any(filter(lambda r: self.has_pub_type(r, 'PER') and \
+                                   self.weight(r) >= b1, works))
+        return True # does not apply
+
+    def download(self, force=False, **kwargs):
+        filepath = self._get_filepath(**kwargs)
+        if not force and os.path.isfile(filepath):
+            return filepath
+        ir_w = self.SICLAP_WEIGHT['B1']
+        with open(filepath+'.tmp', 'w', newline='', encoding=self.encoding) as out_f, \
+             self.sucupira.open_csv() as suc_reader:
+            fieldnames = suc_reader.fieldnames + self.EXTRA_FIELDS
+            writer = csv.DictWriter(out_f, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in suc_reader:
+                d = dict(r)
+                d['DT_MATRICULA_ISO'] = datasets.suc_date2iso(r['DT_MATRICULA_DISCENTE'])
+                d['DT_SITUACAO_ISO'] = datasets.suc_date2iso(r['DT_SITUACAO_DISCENTE'])
+                d['N_CONF'] = sum([1 for x in self.get_works(d, 'CONF')])
+                d['N_PER'] = sum([1 for x in self.get_works(d, 'PER')])
+                d['PTS_CONF'] = sum([self.weight(x) for x in \
+                                     self.get_works(d, 'CONF')])
+                d['PTS_PER'] = sum([self.weight(x) for x in \
+                                    self.get_works(d, 'PER')])
+                d['PTS_CONF_IR'] = sum([self.weight(x) for x in \
+                                        self.get_works(d, 'CONF', \
+                                                       min_weight=ir_w)])
+                d['PTS_PER_IR'] = sum([self.weight(x) for x in \
+                                       self.get_works(d, 'PER', \
+                                                      min_weight=ir_w)])
+                d['ST_REQ_PUB'] = self.has_req_pub(d)
+                writer.writerow(d)
+        os.replace(filepath+'.tmp', filepath)
+        return filepath
+        
 
 BIBLIOMETRICS = Bibliometrics(datasets.DOCENTES, datasets.LINHAS,
                               scopus=datasets.SCOPUS_WORKS_CSV,
                               scholar=datasets.SCHOLAR_WORKS_CSV)
+
 BIBLIOMETRICS_AGGREGATE = BibliometricsAggregate(BIBLIOMETRICS)
+
+AUG_DISCENTES = AugmentedDiscentes(datasets.SUC_DISCENTES_PPGCC,
+                                   datasets.CPC_CSV)

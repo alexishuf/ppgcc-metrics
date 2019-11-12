@@ -578,6 +578,7 @@ class CPCWorks(Dataset):
                 c_row = c_row[:artigo_idx ] + [self.get_authors(c_row[artigo_idx])] \
                       + c_row[ artigo_idx:]
                 writer.writerow(c_row)
+        return filepath
 
         
 SUC_DISCENTES = {
@@ -601,6 +602,8 @@ SCHOLAR_WORKS_CSV = ScholarFile(SCHOLAR_CSV, suffix='-works')
 
 SCOPUS_QUERY = ScopusQuery(DOCENTES)
 SCOPUS_WORKS_CSV = ScopusWorks(SCOPUS_QUERY)
+
+CPC_CSV = CPCWorks()
 
 
 def fix_all_names():
