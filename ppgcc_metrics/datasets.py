@@ -122,9 +122,9 @@ class SucupiraDataset(Dataset):
         r.encoding = 'iso-8859-1'
         with lzma.open(filepath+'.tmp', 'wt',
                        encoding='utf-8', newline='\r\n') as xz:
-            na_rx = re.compile(';\s*N[AÃ]O +SE +APLICA\s*;')
+            na_rx = re.compile('\s*N[AÃ]O +SE +APLICA\s*;')
             for line in r.iter_lines(decode_unicode=True):
-                line = na_rx.sub(';NA;', line)
+                line = na_rx.sub('NA;', line)
                 xz.write(line + '\n')
         os.replace(filepath+'.tmp', filepath)
         print(f'Downloaded {self.url} into {filepath}')
@@ -267,7 +267,7 @@ class GoogleCalendar(Dataset):
 
     
 class GoogleCalendarCSV(Dataset):
-    FIELDS = ['tipo', 'discente', 'orientador', 'coorientador', 'data_ymd']
+    FIELDS = ['tipo', 'discente', 'orientador', 'coorientador', 'data_ymd', '']
     RX_TYPE = re.compile(r'(?i)^\s*(Defesa|(?:Exame\s+(?:de)?\s+)?Qualifica\S+o|Semin\S+rio(?:\s*(?:de\s*)?andamento\s*)?|SAD|EQD|EQM)\s*(?:de)?\s*(Mestrado|Doutorado|)\s*(?:\((?:SAD|EQM|EQD)\))?\s*(?:de|-|:)?\s*(.*)')
     RX_EATEN_NEWLINE = re.compile('(T\S+TULO|LOCAL|DATA(.*HORA)|(CO-?)ORIENTADORA?):?\s*$')
     RX_ORIENTADOR = re.compile(      r'(?i)ORIENTADORA?:\s*(?:prof.?\.?)?\s*(?:dr.?\.)?\s*((?:\w| \w\.| )+)')
@@ -593,6 +593,20 @@ class CPCWorks(Dataset):
                       + c_row[ artigo_idx:]
                 writer.writerow(c_row)
         return filepath
+
+    def doi_getter(self):
+        try:
+            with self.open_csv() as reader:
+                h = next(filter(lambda x: DOI in x.upper(), reader.fieldnames))
+                rx = re.compile(r'(10\.\d\d\d\d/.*)$')
+                def matcher(d):
+                    if h not in d or not d[h]:
+                        return None
+                    m = rx.search(d[h])
+                    return m.group(1) if m else None
+                return matcher
+        except:
+            return lambda x: None
 
 class SecretariaDiscentes(Dataset):
     ID = '1GUhX1Ql3Ky0BzOuIo9CPdKKQg4TIpuW7VYc7MKyl15c'

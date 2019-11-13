@@ -3,6 +3,7 @@ import os
 import os.path
 import re
 import csv
+import json
 from unidecode import unidecode
 from datetime import datetime, date
 from itertools import chain, product
@@ -162,12 +163,16 @@ class AugmentedDiscentes(datasets.Dataset):
     IR_WEIGHT = SICLAP_WEIGHT['B1']
     __PUB_TYPE_STR = {'CONF': 'eve', 'PER': 'per'}
     
-    def __init__(self, sucupira, cpc, filename='discentes-augmented.csv', **kwargs):
-        kwargs['csv_delim'] = kwargs.get('csv_delim', sucupira.csv_delim)
+    def __init__(self, sucupira, cpc, secretaria, calendar, filename='discentes-augmented.csv', **kwargs):
+        kwargs['csv_delim'] = kwargs.get('csv_delim', ';')
         super().__init__(filename, None, **kwargs)
         self.sucupira = sucupira
         self.cpc = cpc
         self.cpc_data = None
+        self.doi_getter = None
+        self.secretaria = secretaria
+        self.calendar = calendar
+        self.calendar_data = None
 
     def weight(self, cpc_row):
         return self.SICLAP_WEIGHT.get(cpc_row['SICLAP'].upper().strip(), 0)
@@ -177,6 +182,27 @@ class AugmentedDiscentes(datasets.Dataset):
             return True
         return unidecode(cpc_row['Tipo'].strip()).lower()[:3] \
             == self.__PUB_TYPE_STR.get(pub_type)
+
+    def is_in_master_defense(self, name, phd_enroll_year, cpc_entry):
+        if not self.calendar_data and self.calendar:
+            with self.calendar.open() as fp:
+                self.calendar_data = json.load(fp)
+        if not self.calendar_data:
+            return False
+        if not self.doi_getter:
+            self.doi_getter = self.cpc.doi_getter()
+        for event in self.calendar_data['items']:
+            e_dict = datasets.PPGCC_CALENDAR_CSV.parse_event(event)
+            if e_dict == None or e_dict['tipo'] != 'DFM' or \
+               not names.same_name(e_dict['discente'], name):
+                continue
+            doi = self.doi_getter(cpc_entry)
+            if doi:
+                print(f'######## returning {doi in event["description"]}')
+                return doi in event['description']
+            if phd_enroll_year == date.fromisoformat(e_dict['data_ymd']).year:
+                return True # assume it is a masters' paper
+        return False
         
     def get_works(self, dis, pub_type, min_weight=None,
                   bump_year=False, position=None):
@@ -199,6 +225,7 @@ class AugmentedDiscentes(datasets.Dataset):
 
     def has_req_pub(self, dis):
         '''Art. 23 do regulamento do PPGCC'''
+        name = dis['NM_DISCENTE']
         grau = dis['DS_GRAU_ACADEMICO_DISCENTE'].strip().upper()
         b3, b2 = self.SICLAP_WEIGHT['B3'], self.SICLAP_WEIGHT['B2']
         b1     = self.SICLAP_WEIGHT['B1']
@@ -207,42 +234,66 @@ class AugmentedDiscentes(datasets.Dataset):
         elif grau == 'DOUTORADO':
             enroll = datetime.strptime(dis['DT_MATRICULA_ISO'], '%Y-%m-%d').year
             works  = self.get_works(dis, 'CONF', min_weight=b3, position=0)
-            works += self.get_works(dis, 'PER',  min_weight=b3, position=0, \
-                                    bump_year=True)
+            works += self.get_works(dis, 'PER',  min_weight=b3, position=0)
+            works  = [x for x in works \
+                      if not self.is_in_master_defense(name, enroll, x)]
             ok_2016 = bool(len(works) >= 2 and \
                       any(filter(lambda r: self.weight(r) >= b2, works)))
             if enroll < 2016 or not ok_2016:
                 return ok_2016
             return any(filter(lambda r: self.has_pub_type(r, 'PER') and \
                                    self.weight(r) >= b1, works))
-        return True # does not apply
+        return True # no rule not applies
 
     def download(self, force=False, **kwargs):
         filepath = self._get_filepath(**kwargs)
         if not force and os.path.isfile(filepath):
             return filepath
         ir_w = self.SICLAP_WEIGHT['B1']
-        with open(filepath+'.tmp', 'w', newline='', encoding=self.encoding) as out_f, \
-             self.sucupira.open_csv() as suc_reader:
-            fieldnames = suc_reader.fieldnames + self.EXTRA_FIELDS
+        fieldnames = []
+        students = []
+        with self.sucupira.open_csv() as suc_reader, \
+             self.secretaria.open_csv() as sec_reader:
+            sec_fields = list(filter(lambda x: x not in fieldnames, \
+                                      sec_reader.fieldnames))
+            fieldnames = suc_reader.fieldnames + sec_fields + self.EXTRA_FIELDS
+            students = [dict(x) for x in suc_reader]
+            for row in sec_reader:
+                nm = row['NM_DISCENTE']
+                grau = row['DS_GRAU_ACADEMICO_DISCENTE']
+                has = lambda d: names.same_name(d['NM_DISCENTE'], nm) and \
+                           d['DS_GRAU_ACADEMICO_DISCENTE'].strip()==grau
+                cands = list(filter(has, students))
+                if len(cands) > 1:
+                    has = lambda d: d['NM_DISCENTE'].strip()==nm and \
+                               d['DS_GRAU_ACADEMICO_DISCENTE'].strip()==grau
+                    cands = list(filter(has, students))
+                if len(cands):
+                    for f in sec_fields:
+                        cands[0][f] = row[f]
+                    f = 'NM_ORIENTADOR_PRINCIPAL'
+                    if not cands[0][f] or cands[0][f].upper().strip()=='NA':
+                        cands[0][f] = row[f]
+                else:
+                    students.append(dict(row))
+        with open(filepath+'.tmp', 'w', newline='', encoding=self.encoding) as out_f:
             writer = csv.DictWriter(out_f, fieldnames=fieldnames)
             writer.writeheader()
-            for r in suc_reader:
-                d = dict(r)
-                d['DT_MATRICULA_ISO'] = datasets.suc_date2iso(r['DT_MATRICULA_DISCENTE'])
-                d['DT_SITUACAO_ISO'] = datasets.suc_date2iso(r['DT_SITUACAO_DISCENTE'])
+            for d in students:
+                d['DT_MATRICULA_ISO'] = datasets.suc_date2iso(d['DT_MATRICULA_DISCENTE'])
+                d['DT_SITUACAO_ISO'] = datasets.suc_date2iso(d['DT_SITUACAO_DISCENTE'])
                 d['N_CONF'] = sum([1 for x in self.get_works(d, 'CONF')])
-                d['N_PER'] = sum([1 for x in self.get_works(d, 'PER')])
+                d['N_PER' ] = sum([1 for x in self.get_works(d, 'PER' )])
                 d['PTS_CONF'] = sum([self.weight(x) for x in \
                                      self.get_works(d, 'CONF')])
-                d['PTS_PER'] = sum([self.weight(x) for x in \
-                                    self.get_works(d, 'PER')])
+                d['PTS_PER' ] = sum([self.weight(x) for x in \
+                                     self.get_works(d, 'PER' )])
                 d['PTS_CONF_IR'] = sum([self.weight(x) for x in \
                                         self.get_works(d, 'CONF', \
                                                        min_weight=ir_w)])
-                d['PTS_PER_IR'] = sum([self.weight(x) for x in \
-                                       self.get_works(d, 'PER', \
-                                                      min_weight=ir_w)])
+                d['PTS_PER_IR' ] = sum([self.weight(x) for x in \
+                                        self.get_works(d, 'PER', \
+                                                       min_weight=ir_w)])
                 d['ST_REQ_PUB'] = self.has_req_pub(d)
                 writer.writerow(d)
         os.replace(filepath+'.tmp', filepath)
@@ -256,4 +307,6 @@ BIBLIOMETRICS = Bibliometrics(datasets.DOCENTES, datasets.LINHAS,
 BIBLIOMETRICS_AGGREGATE = BibliometricsAggregate(BIBLIOMETRICS)
 
 AUG_DISCENTES = AugmentedDiscentes(datasets.SUC_DISCENTES_PPGCC,
-                                   datasets.CPC_CSV)
+                                   datasets.CPC_CSV,
+                                   datasets.SECRETARIA_DISCENTES,
+                                   datasets.PPGCC_CALENDAR)
