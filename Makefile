@@ -5,7 +5,8 @@ all: test
 
 env: 
 	mkdir -p build/
-	test -d build/env ||  virtualenv -p python3 build/env
+	test -d build/env ||  virtualenv3 -p python3 build/env
+	source build/env/bin/activate ; pip install ipython
 	source build/env/bin/activate ; pip install -r requirements.txt
 
 test: env

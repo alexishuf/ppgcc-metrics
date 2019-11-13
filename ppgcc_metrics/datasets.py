@@ -47,6 +47,10 @@ class Dataset:
         if not os.path.isdir(directory):
             os.makedirs(directory)
         return os.path.join(directory, self.filename)
+
+    def is_ready(self, **kwargs):
+        directory = kwargs.get('directory', self.directory)
+        return os.path.isfile(os.path.join(directory, self.filename))
         
     def download(self, directory=None, force=False, **kwargs):
         filepath = self._get_filepath(directory=directory)
@@ -375,9 +379,6 @@ class Scholar(Dataset):
         self.short_fraction = short_fraction
         self.session = requests_html.HTMLSession()
         self.delay_pending = False
-
-    def __str__(self):
-        return f'Scholar({self.docentes_dataset}, dir={self.directory})'
 
     def feed_works_sink(self, tbody_html, works_sink):
         for tds in [tr.find('td') for tr in tbody_html.find('tr.gsc_a_tr')]:
