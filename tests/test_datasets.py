@@ -6,6 +6,7 @@ import lzma
 import json
 import tempfile
 from os.path import join, isfile, abspath, dirname
+from datetime import date
 from pkg_resources import resource_string, resource_stream, resource_listdir
 
 
@@ -106,6 +107,7 @@ class SucupiraTests(unittest.TestCase):
 class SucupiraDateTests(unittest.TestCase):
     def testNone(self):
         self.assertEqual(datasets.suc_date2iso(None), None)
+        self.assertEqual(datasets.date2suc_date(None), None)
     def testEmpty(self):
         self.assertEqual(datasets.suc_date2iso(''), '')
     def testBad(self):
@@ -123,9 +125,23 @@ class SucupiraDateTests(unittest.TestCase):
         self.assertEqual(datasets.suc_date2iso('24OUT2017'), '2017-10-24')
         self.assertEqual(datasets.suc_date2iso('24NOV2017'), '2017-11-24')
         self.assertEqual(datasets.suc_date2iso('24DEZ2017'), '2017-12-24')
+    def testFormat(self):
+        self.assertEqual('24JAN2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-01-24')))
+        self.assertEqual('24FEB2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-02-24')))
+        self.assertEqual('24MAR2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-03-24')))
+        self.assertEqual('24APR2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-04-24')))
+        self.assertEqual('24MAY2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-05-24')))
+        self.assertEqual('24JUN2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-06-24')))
+        self.assertEqual('24JUL2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-07-24')))
+        self.assertEqual('24AUG2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-08-24')))
+        self.assertEqual('24SEP2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-09-24')))
+        self.assertEqual('24OCT2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-10-24')))
+        self.assertEqual('24NOV2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-11-24')))
+        self.assertEqual('24DEC2017:00:00:00', datasets.date2suc_date(date.fromisoformat('2017-12-24')))
     def testFirstDay(self):
         self.assertEqual(datasets.suc_date2iso('01DEZ2018'), '2018-12-01')
         self.assertEqual(datasets.suc_date2iso('1DEZ2018'), '2018-12-01')
+        self.assertEqual(datasets.date2suc_date(date.fromisoformat('2018-12-01')), '01DEC2018:00:00:00')
     def testBugOfTheMillenium(self):
         self.assertEqual(datasets.suc_date2iso('01DEZ18'), '2018-12-01')
         self.assertEqual(datasets.suc_date2iso('1DEZ18'), '2018-12-01')
@@ -320,6 +336,37 @@ class InputDatasetTests(unittest.TestCase):
                 self.assertEqual([dict(d) for d in r], [{'a': '3', 'b': '4'}])
             
 
+class SecretariaDiscentesTest(unittest.TestCase):
+    def testParseNameSimple(self):
+        ds = datasets.SecretariaDiscentes(datasets.DOCENTES)
+        nm, coadv = ds.parse_name('John Doe')
+        self.assertEqual(nm, 'JOHN DOE')
+        self.assertEqual(coadv, None)
+    def testParseCoadvisor(self):
+        ds = datasets.SecretariaDiscentes(datasets.DOCENTES)
+        nm, coadv = ds.parse_name('John Doe\nCoorientador: Ben Trovato')
+        self.assertEqual(nm, 'JOHN DOE')
+        self.assertEqual(coadv, 'BEN TROVATO')
+    def testParseCoadvisorFemale(self):
+        ds = datasets.SecretariaDiscentes(datasets.DOCENTES)
+        nm, coadv = ds.parse_name('John Doe\nCoorientadora: Ben Trovato')
+        self.assertEqual(nm, 'JOHN DOE')
+        self.assertEqual(coadv, 'BEN TROVATO')
+    def testParseCoadvisorFemaleNoColon(self):
+        ds = datasets.SecretariaDiscentes(datasets.DOCENTES)
+        nm, coadv = ds.parse_name('John Doe\nCoorientadora Ben Trovato')
+        self.assertEqual(nm, 'JOHN DOE')
+        self.assertEqual(coadv, 'BEN TROVATO')
+    def testParseCoadvisorFemaleNoColonBogusLines(self):
+        ds = datasets.SecretariaDiscentes(datasets.DOCENTES)
+        nm, coadv = ds.parse_name('John Doe\n\n(Transferido)\nCoorientadora Ben Trovato')
+        self.assertEqual(nm, 'JOHN DOE')
+        self.assertEqual(coadv, 'BEN TROVATO')
+    def testParseCoadvisorParens(self):
+        ds = datasets.SecretariaDiscentes(datasets.DOCENTES)
+        nm, coadv = ds.parse_name('John Doe\n(Coorientador: Ben Trovato)')
+        self.assertEqual(nm, 'JOHN DOE')
+        self.assertEqual(coadv, 'BEN TROVATO')
             
 if __name__ == '__main__':
     unittest.main()

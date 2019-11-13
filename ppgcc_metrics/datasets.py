@@ -141,6 +141,8 @@ class SucupiraDataset(Dataset):
 RX_SUC_DATE = re.compile(r'^(?i)\s*(\d?\d)[. -]?([a-z]+)[- .]?(\d+)(\D|$)')
 SUC_MONTHS_PT = ['', 'JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN',
                      'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ']
+SUC_MONTHS_EN = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
+                     'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
 def suc_date2iso(suc_date):
     try:
         m = RX_SUC_DATE.search(suc_date)
@@ -149,13 +151,25 @@ def suc_date2iso(suc_date):
             month = m.group(2).upper().strip()[:3]
             if month in SUC_MONTHS_PT:
                 month = SUC_MONTHS_PT.index(month)
+            elif month in SUC_MONTHS_EN:
+                month = SUC_MONTHS_EN.index(month)
             else:
                 month = datetime.strptime(month, '%b').month
             return date(year, month, int(m.group(1))).strftime('%Y-%m-%d')
     except:
         pass
     return suc_date
-    
+
+def date2suc_date(d):
+    if d == None:
+        return None
+    try:
+        base = f'{d.day:02}{SUC_MONTHS_EN[d.month]}{d.year}'
+        if isinstance(d, date) and not isinstance(d, datetime):
+            return base + ':00:00:00'
+        return base + d.strftime(':%H:%M:%S')
+    except:
+        return None
     
 class SucupiraProgram(Dataset):
     FIELD_UPGRADES = {
@@ -580,6 +594,95 @@ class CPCWorks(Dataset):
                 writer.writerow(c_row)
         return filepath
 
+class SecretariaDiscentes(Dataset):
+    ID = '1GUhX1Ql3Ky0BzOuIo9CPdKKQg4TIpuW7VYc7MKyl15c'
+    GRAUS = {'DO': 'DOUTORADO', 'ME': 'MESTRADO'}
+    FIELDS = ['NM_DISCENTE', 'DS_GRAU_ACADEMICO_DISCENTE',
+              'DT_MATRICULA_DISCENTE', 'DT_SITUACAO_DISCENTE',
+              'NM_ORIENTADOR_PRINCIPAL', 'NM_COORIENTADOR',
+              'PRORROG_1', 'PRORROG_2', 'SEM_TRANCAMENTOS',
+              'DT_TERMINO', 'DT_TERMINO_ISO',
+              'ST_PROF_LING_1', 'ST_PROF_LING_2',
+              'ST_SAD', 'ST_QUALIFICACAO', 'NUM_SEMINARIOS']
+    RX_COADV = re.compile(r'(?i)\s*Coorientadora?:?\s*([^\)\]]*)\)?\]?')
+    
+    def __init__(self, docentes, filename='secretaria.csv', **kwargs):
+        super().__init__(filename, None, **kwargs)
+        self.sheetId = kwargs.get('sheetId', self.ID)
+        self.key_file = kwargs.get('key_file', SERVICE_ACCOUNT_FILE)
+        self.docentes_ds = docentes
+        self.docentes = None
+
+    def canon_advidsor(self, name):
+        if not self.docentes:
+            with self.docentes_ds.open_csv() as reader:
+                self.docentes = {r['docente'] for r in reader}
+        canon_f = lambda x: names.canon_name(name, x)
+        return next(chain(filter(None, map(canon_f, self.docentes)), [name]))
+
+    def parse_name(self, text):
+        lines = list(filter(len, text.split('\n')))
+        if not len(lines):
+            return None
+        name = names.clean_name(lines[0])
+        for l in lines[1:]:
+            m = self.RX_COADV.search(l)
+            if m:
+                return (name, names.clean_name(m.group(1)))
+        return (name, None)
+    
+    def download(self, force=False, **kwargs):
+        filepath = self._get_filepath(kwargs.get('directory'))
+        if not force and os.path.isfile(filepath):
+            return filepath
+        
+        creds = service_account.Credentials.from_service_account_file(
+            self.key_file, scopes=['https://www.googleapis.com/auth/spreadsheets'])
+        service = googleapiclient.discovery.build('sheets', 'v4',
+                                                  credentials=creds)
+        sheets = service.spreadsheets()
+        range_address = 'Controle!A1:P500'
+        ranges = sheets.values().batchGet(spreadsheetId=self.sheetId,
+                                            majorDimension='ROWS',
+                                            ranges=range_address)\
+                                  .execute().get('valueRanges', [])
+        if len(ranges) < 1:
+            raise ValueError(f'Got no ranges from sheet {self.sheetId}. ' + \
+                             f'Asked for {range_address}')
+        data = ranges[0].get('values')
+        with open(filepath, 'w', newline='', encoding=self.encoding) as out_f:
+            writer = csv.DictWriter(out_f, fieldnames=self.FIELDS)
+            writer.writeheader()
+            for adv_row in filter(None, map(lambda x: x[0] if len(x[1])==1 else None,
+                                            zip(range(len(data)), data))):
+                advisor = self.canon_advidsor(data[adv_row][0])
+                i = adv_row + 2
+                while i < len(data) and len(data[i]) > 3 and len(data[i][3]):
+                    grau = self.GRAUS.get(data[i][4].strip().upper())
+                    name, coadvisor = self.parse_name(data[i][3])
+                    matr = datetime.strptime(data[i][5].strip(), '%d/%m/%Y')
+                    term = datetime.strptime(data[i][9].strip(), '%d/%m/%Y')
+                    writer.writerow({
+                        self.FIELDS[ 0]: name,
+                        self.FIELDS[ 1]: grau,
+                        self.FIELDS[ 2]: date2suc_date(matr),
+                        self.FIELDS[ 3]: date2suc_date(date.today()),
+                        self.FIELDS[ 4]: advisor,
+                        self.FIELDS[ 5]: coadvisor,
+                        self.FIELDS[ 6]: data[i][6],  #prorrog_1
+                        self.FIELDS[ 7]: data[i][7],  #prorrog_2
+                        self.FIELDS[ 8]: data[i][8],  #tranc
+                        self.FIELDS[ 9]: date2suc_date(term),
+                        self.FIELDS[10]: term.isoformat(),
+                        self.FIELDS[11]: data[i][10], #prof ing
+                        self.FIELDS[12]: data[i][11], #prof 2
+                        self.FIELDS[13]: data[i][12], #sad
+                        self.FIELDS[14]: data[i][13], #qualify
+                        self.FIELDS[15]: data[i][14], #seminarios
+                    })
+                    i += 1
+        return filepath
+                
         
 SUC_DISCENTES = {
     2018: SucupiraDataset('suc-dis-2018.csv.xz', 'https://dadosabertos.capes.gov.br/dataset/b7003093-4fab-4b88-b0fa-b7d8df0bcb77/resource/37fde9f4-bb94-4806-85d4-5d744f7f76ef/download/br-capes-colsucup-discentes-2018-2019-10-01.csv'),
@@ -604,6 +707,7 @@ SCOPUS_QUERY = ScopusQuery(DOCENTES)
 SCOPUS_WORKS_CSV = ScopusWorks(SCOPUS_QUERY)
 
 CPC_CSV = CPCWorks()
+SECRETARIA_DISCENTES = SecretariaDiscentes(DOCENTES)
 
 
 def fix_all_names():
