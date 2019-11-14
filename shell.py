@@ -10,10 +10,11 @@ ALL_DATASETS = list(itertools.chain(
 
 def get_all(**kwargs):
     for m in [ds, de]:
-        for d in filter(lambda x: isinstance(getattr(m, x), ds.Dataset), dir(m)):
+        for d in filter(lambda x: isinstance(x, ds.Dataset), \
+                        map(lambda x: getattr(m, x), dir(m))):
             print(f'Downloading data for {d}...')
             d.download(**kwargs)
-    print(f'Downloads & processing completed for all datasets')
+    print(f'Download & processing completed for all datasets')
 
 if __name__ == '__main__':
     print('\n--=[ ppgcc-metrics interactive shell ]=--\n' +
