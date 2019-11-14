@@ -53,14 +53,15 @@ class Bibliometrics(datasets.Dataset):
         # print(f'write_metrics({group}, {source}, years={min(years)}:{max(years)+1} h={h}, h5={h5}')
         for year in range(min(years), max(years)+1):
             sub = [x for x in rows if x[year_f] == year]
-            dict_sink({
-                'group': group, 'pub_year': year, 'base_year': base,
-                'source': source, 'documents' : len(sub),
-                'h'  : sum([1 for r in sub if r[cited_f] >= h ]),
-                'h5' : sum([1 for r in sub if r[cited_f] >= h5 and \
-                                              r[year_f] in h5_years]),
-                'citations': sum([r[cited_f] for r in sub])
-            })
+            if len(sub):
+                dict_sink({
+                    'group': group, 'pub_year': year, 'base_year': base,
+                    'source': source, 'documents' : len(sub),
+                    'h'  : sum([1 for r in sub if r[cited_f] >= h ]),
+                    'h5' : sum([1 for r in sub if r[cited_f] >= h5 and \
+                                r[year_f] in h5_years]),
+                    'citations': sum([r[cited_f] for r in sub])
+                })
 
     def _get_linhas(self):
         if not self.linhas:
