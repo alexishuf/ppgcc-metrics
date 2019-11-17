@@ -163,8 +163,10 @@ class AugmentedDiscentes(datasets.Dataset):
     }
     IR_WEIGHT = SICLAP_WEIGHT['B1']
     __PUB_TYPE_STR = {'CONF': 'eve', 'PER': 'per'}
+    __EVT_TIPO_GRAU = {'DFM': 'MESTRADO', 'DFD': 'DOUTORADO'}
     
-    def __init__(self, sucupira, cpc, secretaria, calendar, filename='discentes-augmented.csv', **kwargs):
+    def __init__(self, sucupira, cpc, secretaria, calendar, calendar_csv, \
+                 filename='discentes-augmented.csv', **kwargs):
         kwargs['csv_delim'] = kwargs.get('csv_delim', ';')
         super().__init__(filename, None, **kwargs)
         self.sucupira = sucupira
@@ -174,6 +176,7 @@ class AugmentedDiscentes(datasets.Dataset):
         self.secretaria = secretaria
         self.calendar = calendar
         self.calendar_data = None
+        self.calendar_csv = calendar_csv
 
     def weight(self, cpc_row):
         return self.SICLAP_WEIGHT.get(cpc_row['SICLAP'].upper().strip(), 0)
@@ -255,7 +258,7 @@ class AugmentedDiscentes(datasets.Dataset):
         students = []
         with self.sucupira.open_csv() as suc_reader, \
              self.secretaria.open_csv() as sec_reader:
-            sec_fields = list(filter(lambda x: x not in fieldnames, \
+            sec_fields = list(filter(lambda x: x not in suc_reader.fieldnames, \
                                       sec_reader.fieldnames))
             fieldnames = suc_reader.fieldnames + sec_fields + self.EXTRA_FIELDS
             students = [dict(x) for x in suc_reader]
@@ -277,6 +280,25 @@ class AugmentedDiscentes(datasets.Dataset):
                         cands[0][f] = row[f]
                 else:
                     students.append(dict(row))
+        with self.calendar_csv.open_csv() as cal_reader:
+            for event in cal_reader:
+                name = event['discente']
+                grau = self.__EVT_TIPO_GRAU.get(event['tipo'])
+                if grau:
+                    cands = [r for r in students \
+                             if r['DS_GRAU_ACADEMICO_DISCENTE']==grau and \
+                             names.same_name(r['NM_DISCENTE'], name)]
+                    if len(cands) > 1:
+                        cands = [r for r in cands \
+                                 if r['NM_DISCENTE']==name]
+                    if len(cands) == 1 and cands[0]['NM_SITUACAO_DISCENTE'] == 'MATRICULADO':
+                        cands[0]['NM_SITUACAO_DISCENTE'] = 'TITULADO'
+                        end = datasets.iso2suc_date(event['data_ymd'])
+                        cands[0]['DT_SITUACAO_DISCENTE'] = end
+                        end = datasets.suc_date2date(end)
+                        begin = datasets.suc_date2date(cands[0]['DT_MATRICULA_DISCENTE'])
+                        months = round((end - begin).days / 30)
+                        cands[0]['QT_MES_TITULACAO'] = months
         with open(filepath+'.tmp', 'w', newline='', encoding=self.encoding) as out_f:
             writer = csv.DictWriter(out_f, fieldnames=fieldnames)
             writer.writeheader()
@@ -310,4 +332,5 @@ BIBLIOMETRICS_AGGREGATE = BibliometricsAggregate(BIBLIOMETRICS)
 AUG_DISCENTES = AugmentedDiscentes(datasets.SUC_DISCENTES_PPGCC,
                                    datasets.CPC_CSV,
                                    datasets.SECRETARIA_DISCENTES,
-                                   datasets.PPGCC_CALENDAR)
+                                   datasets.PPGCC_CALENDAR,
+                                   datasets.PPGCC_CALENDAR_CSV)

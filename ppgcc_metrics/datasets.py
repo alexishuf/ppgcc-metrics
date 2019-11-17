@@ -147,7 +147,7 @@ SUC_MONTHS_PT = ['', 'JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN',
                      'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ']
 SUC_MONTHS_EN = ['', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
                      'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
-def suc_date2iso(suc_date):
+def suc_date2date(suc_date):
     try:
         m = RX_SUC_DATE.search(suc_date)
         if m != None:
@@ -159,10 +159,15 @@ def suc_date2iso(suc_date):
                 month = SUC_MONTHS_EN.index(month)
             else:
                 month = datetime.strptime(month, '%b').month
-            return date(year, month, int(m.group(1))).strftime('%Y-%m-%d')
+            return date(year, month, int(m.group(1)))
     except:
         pass
     return suc_date
+def suc_date2iso(suc_date):
+    return suc_date2date(suc_date).strftime('%Y-%m-%d')
+
+def iso2suc_date(iso):
+    return date2suc_date(datetime.fromisoformat(iso).date())
 
 def date2suc_date(d):
     if d == None:
