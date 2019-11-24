@@ -164,7 +164,8 @@ def suc_date2date(suc_date):
         pass
     return suc_date
 def suc_date2iso(suc_date):
-    return suc_date2date(suc_date).strftime('%Y-%m-%d')
+    d = suc_date2date(suc_date)
+    return d.strftime('%Y-%m-%d') if isinstance(d, date) else d
 
 def iso2suc_date(iso):
     return date2suc_date(datetime.fromisoformat(iso).date())
