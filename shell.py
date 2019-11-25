@@ -10,7 +10,7 @@ ALL_DATASETS = list(itertools.chain(
 
 def get_all(**kwargs):
     for m in [ds, de]:
-        for d in filter(lambda x: isinstance(x, ds.Dataset), \
+        for d in filter(lambda x: isinstance(x, ds.Dataset) and not x.non_trivial, \
                         map(lambda x: getattr(m, x), dir(m))):
             print(f'Downloading data for {d}...')
             d.download(**kwargs)

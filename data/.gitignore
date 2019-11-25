@@ -9,3 +9,6 @@ scopus-works.csv
 suc-dis-*.csv.xz
 suc-dis-ppgcc.csv
 discentes-augmented.csv
+socio.csv.*
+capg_pdfs/
+capg-cnpj.csv

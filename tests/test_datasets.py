@@ -367,6 +367,64 @@ class SecretariaDiscentesTest(unittest.TestCase):
         nm, coadv = ds.parse_name('John Doe\n(Coorientador: Ben Trovato)')
         self.assertEqual(nm, 'JOHN DOE')
         self.assertEqual(coadv, 'BEN TROVATO')
-            
+
+class DiscentesCAPGCNPJTest(unittest.TestCase):
+    ROWS = [
+        {'cnpj': '83899526000182', 'nome_socio': 'FULANO DA SILVA',
+         'cnpj_cpf_do_socio': '12345678910',
+         'data_entrada_sociedade': '2019-01-20'},
+        {'cnpj': '83899526000182', 'nome_socio': 'FULANO DA SILVA',
+         'cnpj_cpf_do_socio': '***456789**',
+         'data_entrada_sociedade': '2019-01-20'},
+        {'cnpj': '83899526000182', 'nome_socio': 'FULANO DA SILVA',
+         'cnpj_cpf_do_socio': '',
+         'data_entrada_sociedade': '2019-01-20'},
+    ]
+    def setUp(self):
+        self.ds = datasets.DiscentesCAPGCNPJ('capg-cnpj.csv', 'capg_pdfs',
+                                             datasets.SOCIOS_BRASIL)
+    def testExactNameAndCPF(self):
+        m = self.ds._merge(self.ROWS[0], '12345678910', 'Fulano da Silva')
+        self.assertTrue(m)
+        self.assertEqual(m['discente'], 'Fulano da Silva')
+        self.assertEqual(m['cnpj'], '83899526000182')
+    def testMaskedCPF(self):
+        m = self.ds._merge(self.ROWS[1], '12345678910', 'Fulano da Silva')
+        self.assertTrue(m)
+        self.assertEqual(m['discente'], 'Fulano da Silva')
+        self.assertEqual(m['cnpj'], '83899526000182')
+    def testSimilarNameMaskedCPF(self):
+        m = self.ds._merge(self.ROWS[1], '12345678910', 'Fulano Silva')
+        self.assertTrue(m)
+        self.assertEqual(m['discente'], 'Fulano Silva')
+        self.assertEqual(m['cpf'], '12345678910')
+        self.assertEqual(m['cnpj'], '83899526000182')
+    def testSimilarNameMissingCPF(self):
+        m = self.ds._merge(self.ROWS[2], '12345678910', 'Fulano Silva')
+        self.assertFalse(m)
+    def testExactNameMissingCPF(self):
+        m = self.ds._merge(self.ROWS[2], '12345678910', 'Fulano da Silva')
+        self.assertFalse(m)
+    def testExactNameMismatchCPF(self):
+        m = self.ds._merge(self.ROWS[0], '12345678911', 'Fulano da Silva')
+        self.assertFalse(m)
+    def testExactNameMismatchMaskedCPF(self):
+        m = self.ds._merge(self.ROWS[1], '12346678910', 'Fulano da Silva')
+        self.assertFalse(m)
+    def testMatchStudents(self):
+        m = self.ds._match_student(self.ROWS[0],
+                                   [('78945612310', 'Ciclano da Silva'),
+                                    ('12345678910', 'Fulano da Silva')])
+        self.assertTrue(m)
+        self.assertEqual(m['discente'], 'Fulano da Silva')
+        self.assertEqual(m['cpf'], '12345678910')
+        self.assertEqual(m['cnpj'], '83899526000182')
+    def testMatchStudentsFail(self):
+        m = self.ds._match_student(self.ROWS[0],
+                                   [('12346678910', 'Beltrano da Silva'),
+                                    ('78945612310', 'Ciclano da Silva')])
+        self.assertFalse(m)
+
+
 if __name__ == '__main__':
     unittest.main()

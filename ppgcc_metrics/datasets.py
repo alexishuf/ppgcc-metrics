@@ -5,9 +5,11 @@ import os.path
 import os
 import errno
 import lzma
+import gzip
 import re
 import csv
 import json
+import textract
 import googleapiclient.discovery
 import pyperclip
 from datetime import datetime, date
@@ -38,6 +40,7 @@ class Dataset:
         self.directory = directory
         self.csv_delim = csv_delim
         self.encoding = encoding
+        self.non_trivial = False
 
     def __str__(self):
         return self.filename
@@ -703,7 +706,109 @@ class SecretariaDiscentes(Dataset):
                     })
                     i += 1
         return filepath
-                
+
+
+class SociosBrasil(InputDataset):
+    def __init__(self, filename='socio.csv.xz', **kwargs):
+        super().__init__(filename, **kwargs)
+        self.non_trivial = True
+
+    def download(self, **kwargs):
+        filepath = self._get_filepath(**kwargs)
+        if not os.path.isfile(filepath):
+            alt = re.sub(r'\.xz$', '.gz', filepath)
+            if os.path.isfile(alt):
+                opts = {encoding: 'utf-8', newline: ''}
+                with gzip.open(alt, 'rt', **opts) as gz, \
+                     lzma.open(filepath, 'wt', **opts) as xz:
+                    xz.write(gz.read(4096))
+            else:
+                print('Download data using https://github.com/turicas' + \
+                      '/socios-brasil. Pass --no_censorship to ./run.sh ' + \
+                      'in order to get CPFs')
+                raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filepath)
+        return filepath
+
+    def open(self, **kwargs):
+        return self._open(self.download(**kwargs), 'r', **kwargs)
+
+    def _open(self, filepath, mode, **kwargs):
+        newline = kwargs['newline'] if 'newline' in kwargs else None
+        return lzma.open(filepath, mode+'t',
+                         newline=newline, encoding='utf-8')
+
+class DiscentesCAPGCNPJ(Dataset):
+    RX_PDF = re.compile(r'([0-9]{11})\s*([^\n]+)\n')
+    FIELDS = ['cpf', 'discente', 'cnpj', 'data_entrada_sociedade']
+    
+    def __init__(self, filename, pdfs_dir, socios, **kwargs):
+        super().__init__(filename, None, **kwargs)
+        self.non_trivial = not socios.is_ready()
+        self.pdfs_dir = pdfs_dir
+        self.socios = socios
+        
+    def clean_cpf(self, cpf):
+        if not isinstance(cpf, str) or len(cpf) < 11:
+            cpf = f'{int(str(cpf)):011d}'
+        return cpf
+        
+    def _merge(self, row_d, cpf, nome):
+        cpf_socio = row_d['cnpj_cpf_do_socio']
+        if not cpf_socio or len(cpf_socio.strip()) == 0:
+            return None
+        cpf, cpf_socio = cpf.strip(), cpf_socio.strip()
+        if len(cpf) != len(cpf_socio):
+            return None
+        for i in range(len(cpf)):
+            if cpf_socio[i] != '*' and cpf[i] != cpf_socio[i]:
+                return None
+        if not names.same_name(nome, row_d['nome_socio']):
+            return None
+        return {'cpf': cpf, 'discente': nome, 'cnpj': row_d['cnpj'],
+                'data_entrada_sociedade': row_d['data_entrada_sociedade']}
+
+    def _match_student(self, row_d, student_pairs):
+        for cpf, nome in student_pairs:
+            m = self._merge(row_d, cpf, nome)
+            if m:
+                return m
+        
+    def __create(self, filepath, **kwargs):
+        directory = kwargs.get('directory', self.directory)
+        pdfs_dir = os.path.join(directory, self.pdfs_dir)
+        students = []
+        for pdf in os.listdir(pdfs_dir):
+            pdfpath = os.path.join(pdfs_dir, pdf)
+            s = textract.process(pdfpath)
+            if not s:
+                continue
+            s = s.decode('utf-8')
+            students += self.RX_PDF.findall(s)
+        students = [(self.clean_cpf(c), names.clean_name(n)) \
+                    for c,n in students]
+        print(f'Looking for {len(students)} students in ~26 million CNPJs')
+        print('This will take many HOURS. Will print every 100 thousand rows')
+        with open(filepath, 'w', newline='', encoding=self.encoding) as out_f, \
+             self.socios.open_csv() as socios:
+            writer = csv.DictWriter(out_f, fieldnames=self.FIELDS)
+            writer.writeheader()
+            wrote = 0
+            read = 0
+            for r in socios:
+                merged = self._match_student(r, students)
+                if merged:
+                    writer.writerow(merged)
+                    print(f'CNPJ {merged["cnpj"]} for {merged["discente"]}')
+                read += 1
+                if read % 100000 == 0:
+                    print(f'read {read} lines')
+        return wrote
+        
+    def download(self, **kwargs):
+        filepath = self._get_filepath(**kwargs)
+        if not os.path.isfile(filepath):
+            self.__create(filepath, **kwargs)
+        return filepath
         
 SUC_DISCENTES = {
     2018: SucupiraDataset('suc-dis-2018.csv.xz', 'https://dadosabertos.capes.gov.br/dataset/b7003093-4fab-4b88-b0fa-b7d8df0bcb77/resource/37fde9f4-bb94-4806-85d4-5d744f7f76ef/download/br-capes-colsucup-discentes-2018-2019-10-01.csv'),
@@ -729,6 +834,9 @@ SCOPUS_WORKS_CSV = ScopusWorks(SCOPUS_QUERY)
 
 CPC_CSV = CPCWorks()
 SECRETARIA_DISCENTES = SecretariaDiscentes(DOCENTES)
+
+SOCIOS_BRASIL = SociosBrasil()
+CAPG_CNPJ = DiscentesCAPGCNPJ('capg-cnpj.csv', 'capg_pdfs', SOCIOS_BRASIL)
 
 
 def fix_all_names():
