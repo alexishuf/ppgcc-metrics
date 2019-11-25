@@ -321,7 +321,39 @@ class AugmentedDiscentes(datasets.Dataset):
                 writer.writerow(d)
         os.replace(filepath+'.tmp', filepath)
         return filepath
+
+class MultiProgramDocentes(datasets.Dataset):
+    def __init__(self, filename, program_code, year2dataset, **kwargs):
+        super().__init__(filename, None, **kwargs)
+        self.program_code = program_code
+        self.year2dataset = year2dataset
+
+    def download(self, force=False, **kwargs):
+        filepath = self._get_filepath(**kwargs)
+        if not force and os.path.isfile(filepath):
+            return filepath
+        fields = []
+        for year in sorted(self.year2dataset.keys(), reverse=True):
+            with self.year2dataset[year].open_csv() as reader:
+                fields += list(filter(lambda x: x not in fields, reader.fieldnames))
+        with open(filepath, 'w', encoding='utf-8', newline='') as out_f:
+            writer = csv.DictWriter(out_f, fieldnames=fields)
+            writer.writeheader()
+            for year in sorted(self.year2dataset.keys(), reverse=True):
+                ds = self.year2dataset[year]
+                ids = set()
+                with ds.open_csv() as reader:
+                    for row in reader:
+                        if self.program_code in row['CD_PROGRAMA_IES']:
+                            ids.add(row['ID_PESSOA'].strip())
+                with ds.open_csv() as reader:
+                    for row in reader:
+                        if row['ID_PESSOA'].strip() in ids and \
+                           self.program_code not in row['CD_PROGRAMA_IES']:
+                            writer.writerow(row)
+        return filepath
         
+
 
 BIBLIOMETRICS = Bibliometrics(datasets.DOCENTES, datasets.LINHAS,
                               scopus=datasets.SCOPUS_WORKS_CSV,
@@ -334,3 +366,5 @@ AUG_DISCENTES = AugmentedDiscentes(datasets.SUC_DISCENTES_PPGCC,
                                    datasets.SECRETARIA_DISCENTES,
                                    datasets.PPGCC_CALENDAR,
                                    datasets.PPGCC_CALENDAR_CSV)
+MULTIPROG_DOC = MultiProgramDocentes('multiprog-doc.csv', '41001010025', \
+                                     datasets.SUC_DOCENTES)

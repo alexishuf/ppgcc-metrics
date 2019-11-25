@@ -849,6 +849,11 @@ SUC_DISCENTES = {
 }
 
 SUC_DISCENTES_PPGCC = SucupiraProgram('suc-dis-ppgcc.csv', '41001010025', SUC_DISCENTES)
+
+SUC_DOCENTES = {
+    2018: SucupiraDataset('suc-doc-2018.csv.xz', 'https://dadosabertos.capes.gov.br/dataset/57f86b23-e751-4834-8537-e9d33bd608b6/resource/08d2a6bd-ac0f-4c25-ab89-8457288e15a6/download/br-capes-colsucup-docente-2018-2019-10-01.csv'),
+    2017: SucupiraDataset('suc-doc-2017.csv.xz', 'https://dadosabertos.capes.gov.br/dataset/57f86b23-e751-4834-8537-e9d33bd608b6/resource/d918d02e-7180-4c7c-be73-980f9a8c09b5/download/br-capes-colsucup-docente-2017-2018-08-10.csv'),
+}
     
 PPGCC_CALENDAR = GoogleCalendar('calendar.json', 'ppgccnuvem@gmail.com')
 PPGCC_CALENDAR_CSV = GoogleCalendarCSV('calendar.csv', PPGCC_CALENDAR)
@@ -887,6 +892,12 @@ def fix_all_names():
                         ['docente', 'NM_ORIENTADOR_PRINCIPAL'],
                         read_only=[0], allow_ambiguous=True)
     names.fix_csv_names([SUC_DISCENTES_PPGCC, PPGCC_CALENDAR_CSV],
+                        ['NM_DISCENTE', 'discente'],
+                        read_only=[0], allow_ambiguous=True)
+    names.fix_csv_names([SUC_DISCENTES_PPGCC, CAPG_CNPJ],
+                        ['NM_DISCENTE', 'discente'],
+                        read_only=[0], allow_ambiguous=True)
+    names.fix_csv_names([SUC_DISCENTES_PPGCC, CAPG_CNPJ_DETAILS],
                         ['NM_DISCENTE', 'discente'],
                         read_only=[0], allow_ambiguous=True)
     

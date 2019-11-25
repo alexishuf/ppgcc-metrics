@@ -14,3 +14,5 @@ empresa.csv.*
 capg_pdfs/
 capg-cnpj+cpf.csv
 capg-cnpj-details.csv
+suc-doc-*.csv.xz
+multiprog-doc.csv
