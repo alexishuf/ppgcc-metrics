@@ -10,5 +10,7 @@ suc-dis-*.csv.xz
 suc-dis-ppgcc.csv
 discentes-augmented.csv
 socio.csv.*
+empresa.csv.*
 capg_pdfs/
 capg-cnpj+cpf.csv
+capg-cnpj-details.csv

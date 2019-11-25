@@ -33,14 +33,14 @@ def simplify_title(title):
     return  _DEDUP_SPACES_RX     .sub(' ', title)
 
 class Dataset:
-    def __init__(self, name, url, directory='data',
+    def __init__(self, name, url, directory='data', non_trivial=False,
                  csv_delim=',', encoding='utf-8'):
         self.filename = name
         self.url = url
         self.directory = directory
         self.csv_delim = csv_delim
         self.encoding = encoding
-        self.non_trivial = False
+        self.non_trivial = non_trivial
 
     def __str__(self):
         return self.filename
@@ -708,36 +708,34 @@ class SecretariaDiscentes(Dataset):
         return filepath
 
 
-class SociosBrasil(InputDataset):
-    def __init__(self, filename='socio.csv.xz', **kwargs):
+class CompressedCSV(InputDataset):
+    def __init__(self, filename, message='', **kwargs):
         super().__init__(filename, **kwargs)
-        self.non_trivial = True
+        self.message = message
 
     def download(self, **kwargs):
         filepath = self._get_filepath(**kwargs)
-        if not os.path.isfile(filepath):
-            alt = re.sub(r'\.xz$', '.gz', filepath)
-            if os.path.isfile(alt):
-                opts = {encoding: 'utf-8', newline: ''}
-                with gzip.open(alt, 'rt', **opts) as gz, \
-                     lzma.open(filepath, 'wt', **opts) as xz:
-                    xz.write(gz.read(4096))
-            else:
-                print('Download data using https://github.com/turicas' + \
-                      '/socios-brasil. Pass --no_censorship to ./run.sh ' + \
-                      'in order to get CPFs')
-                raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filepath)
-        return filepath
+        if os.path.isfile(filepath+'.gz'):
+            return filepath+'.gz'
+        if os.path.isfile(filepath+'.xz'):
+            return filepath+'.xz'
+        if self.message:
+            print(self.message)
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filepath)
 
     def open(self, **kwargs):
         return self._open(self.download(**kwargs), 'r', **kwargs)
 
     def _open(self, filepath, mode, **kwargs):
-        newline = kwargs['newline'] if 'newline' in kwargs else None
-        return lzma.open(filepath, mode+'t',
-                         newline=newline, encoding='utf-8')
+        mod = {'.gz': gzip, '.xz': lzma}.get(filepath[-3:])
+        if not mod:
+            raise ValueError(f'Unknown extension {filepath[-3:]}')
+        return mod.open(filepath, mode+'t',
+                        newline=kwargs.get('newline'), encoding='utf-8')
+
 
 class DiscentesCAPGCNPJ(Dataset):
+    # RX_PDF = re.compile(r'([0-9]{11})\s*([^\n]+)\n[^0-9]*\d,\d\d\s*(\d\d/\d\d/\d\d\d\d)\s*')
     RX_PDF = re.compile(r'([0-9]{11})\s*([^\n]+)\n')
     FIELDS = ['cpf', 'discente', 'cnpj', 'data_entrada_sociedade']
     
@@ -809,6 +807,37 @@ class DiscentesCAPGCNPJ(Dataset):
         if not os.path.isfile(filepath):
             self.__create(filepath, **kwargs)
         return filepath
+
+class DiscentesCAPGCNPJDetails(Dataset):
+    def __init__(self, filename, capg_cnpj, empresas, **kwargs):
+        super().__init__(filename, None, **kwargs)
+        self.capg_cnpj = capg_cnpj
+        self.empresas = empresas
+        self.non_trivial = not capg_cnpj.is_ready() or not empresas.is_ready()
+
+    def download(self, force=False, **kwargs):
+        filepath = self._get_filepath(**kwargs)
+        if not force and os.path.isfile(filepath):
+            return filepath
+        fields, in_dicts = [], dict()
+        with self.capg_cnpj.open_csv() as reader:
+            fields = reader.fieldnames
+            for x in reader:
+                in_dicts[x['cnpj']] = x
+        with self.empresas.open_csv() as empresas, \
+             open(filepath, 'w', encoding=self.encoding, newline='') as out_f:
+            fields += list(filter(lambda x: x not in fields, empresas.fieldnames))
+            writer = csv.DictWriter(out_f, fieldnames=fields)
+            writer.writeheader()
+            read = 0
+            for x in empresas:
+                if x['cnpj'] in in_dicts:
+                    writer.writerow({**in_dicts[x['cnpj']], **x})
+                read += 1
+                if read % 1000000 == 0:
+                    print(f'Processed {read/1000000}M rows in empresas.csv.gz')
+        return filepath
+
         
 SUC_DISCENTES = {
     2018: SucupiraDataset('suc-dis-2018.csv.xz', 'https://dadosabertos.capes.gov.br/dataset/b7003093-4fab-4b88-b0fa-b7d8df0bcb77/resource/37fde9f4-bb94-4806-85d4-5d744f7f76ef/download/br-capes-colsucup-discentes-2018-2019-10-01.csv'),
@@ -835,9 +864,17 @@ SCOPUS_WORKS_CSV = ScopusWorks(SCOPUS_QUERY)
 CPC_CSV = CPCWorks()
 SECRETARIA_DISCENTES = SecretariaDiscentes(DOCENTES)
 
-SOCIOS_BRASIL = SociosBrasil()
+SOCIOS_BRASIL = CompressedCSV('socio.csv', message='' +\
+                              'Download data using https://github.com/' +\
+                              'turicas/socios-brasil. Pass --no_censorship ' +\
+                              'to ./run.sh in order to get CPFs',
+                              non_trivial = True)
+EMPRESAS_BRASIL = CompressedCSV('empresa.csv', message='' +\
+                                'Download data using https://github.com/' +\
+                                'turicas/socios-brasil.',
+                                non_trivial = True)
 CAPG_CNPJ = DiscentesCAPGCNPJ('capg-cnpj.csv', 'capg_pdfs', SOCIOS_BRASIL)
-
+CAPG_CNPJ_DETAILS = DiscentesCAPGCNPJDetails('capg-cnpj-details.csv', CAPG_CNPJ, EMPRESAS_BRASIL)
 
 def fix_all_names():
     names.fix_csv_names([DOCENTES, PPGCC_CALENDAR_CSV],
