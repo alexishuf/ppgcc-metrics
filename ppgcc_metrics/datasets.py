@@ -730,6 +730,12 @@ class CompressedCSV(Dataset):
         super().__init__(filename, url, **kwargs)
         self.message = message
 
+    def is_ready(self, **kwargs):
+        directory = kwargs.get('directory', self.directory)
+        filepath = os.path.join(directory, self.filename)
+        return os.path.isfile(filepath+'.gz') or \
+               os.path.isfile(filepath+'.xz')
+        
     def download(self, force=False, **kwargs):
         filepath = self._get_filepath(**kwargs)
         if not force and os.path.isfile(filepath+'.gz'):
