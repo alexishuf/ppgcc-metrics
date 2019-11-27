@@ -9,9 +9,11 @@ import gzip
 import re
 import csv
 import json
+import gdown
 import textract
 import googleapiclient.discovery
 import pyperclip
+from tqdm import tqdm
 from datetime import datetime, date
 from random import randint
 from itertools import chain, product
@@ -31,6 +33,25 @@ def simplify_title(title):
     title = _SIMPLIFY_SUBTITLE_RX.sub('' , title)
     title = _SIMPLIFY_TITLE_RX   .sub(' ', title)
     return  _DEDUP_SPACES_RX     .sub(' ', title)
+
+def download_url(url, to):
+    if re.match(r'^https?://drive.google.com', url):
+        gdown.download(url, to, False)
+        return to
+    r = requests.get(url, stream=True)
+    t_bytes = r.headers.get('content-length')
+    if not t_bytes:
+        m = re.search(r'/(\d+)', r.headers.get('content-range'))
+        t_bytes = int(m.group(1))
+    name = to.split(os.sep)[-1]
+    with open(to+'.tmp', 'wb') as out, \
+         tqdm(total=t_bytes, unit='B', unit_scale=True, desc=name) as pbar:
+        for chunk in r.iter_content(chunk_size=2048):
+            out.write(chunk)
+            pbar.update(2048)
+    os.replace(to+'.tmp', to)
+    return to
+
 
 class Dataset:
     def __init__(self, name, url, directory='data', non_trivial=False,
@@ -54,15 +75,11 @@ class Dataset:
     def is_ready(self, **kwargs):
         directory = kwargs.get('directory', self.directory)
         return os.path.isfile(os.path.join(directory, self.filename))
-        
+     
     def download(self, directory=None, force=False, **kwargs):
         filepath = self._get_filepath(directory=directory)
         if force or not os.path.isfile(filepath):
-            with open(filepath+'.tmp', 'b') as out:
-                r = requests.get(self.url, stream=True)
-                for chunk in r.iter_content(chunk_size=2048):
-                    out.write(chunk)
-            os.replace(filepath+'.tmp', filepath)
+            download_url(self.url, filepath)
         return filepath
 
     def open(self, **kwargs):
@@ -708,17 +725,30 @@ class SecretariaDiscentes(Dataset):
         return filepath
 
 
-class CompressedCSV(InputDataset):
-    def __init__(self, filename, message='', **kwargs):
-        super().__init__(filename, **kwargs)
+class CompressedCSV(Dataset):
+    def __init__(self, filename, url=None, message='', **kwargs):
+        super().__init__(filename, url, **kwargs)
         self.message = message
 
-    def download(self, **kwargs):
+    def download(self, force=False, **kwargs):
         filepath = self._get_filepath(**kwargs)
-        if os.path.isfile(filepath+'.gz'):
+        if not force and os.path.isfile(filepath+'.gz'):
             return filepath+'.gz'
-        if os.path.isfile(filepath+'.xz'):
+        if not force and os.path.isfile(filepath+'.xz'):
             return filepath+'.xz'
+        if self.url:
+            print(f'Downloading {self.url}')
+            download_url(self.url, filepath+'.tmp')
+            suff = ''
+            for ext, mod in [('gz', gzip), ('xz', lzma)]:
+                try:
+                    with mod.open(filepath+'.tmp', 'rt') as f:
+                        f.read(1000)
+                        suff = '.'+ext
+                except:
+                    pass
+            os.replace(filepath+'.tmp', filepath+suff)
+            return filepath+suff
         if self.message:
             print(self.message)
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filepath)
@@ -874,10 +904,12 @@ SOCIOS_BRASIL = CompressedCSV('socio.csv', message='' +\
                               'turicas/socios-brasil. Pass --no_censorship ' +\
                               'to ./run.sh in order to get CPFs',
                               non_trivial = True)
-EMPRESAS_BRASIL = CompressedCSV('empresa.csv', message='' +\
-                                'Download data using https://github.com/' +\
-                                'turicas/socios-brasil.',
-                                non_trivial = True)
+EMPRESAS_BRASIL = CompressedCSV('empresa.csv',
+                                url='https://drive.google.com/uc?id=' +\
+                                '1c_gwLqaVQzRmY2IYCMyPDDCoC8OtTuiW')
+CNAE_SECUNDARIA = CompressedCSV('cnae-secundaria.csv', \
+                                url='https://drive.google.com/uc?id=' +\
+                                '1LgmoYWJoqsI-jQGZV6u9AM3GEIr40Wwm')
 CAPG_CNPJ = DiscentesCAPGCNPJ('capg-cnpj.csv', 'capg_pdfs', SOCIOS_BRASIL)
 CAPG_CNPJ_DETAILS = DiscentesCAPGCNPJDetails('capg-cnpj-details.csv', CAPG_CNPJ, EMPRESAS_BRASIL)
 

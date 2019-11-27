@@ -7,3 +7,4 @@ google-auth-oauthlib
 pyperclip
 python-Levenshtein
 textract
+gdown
