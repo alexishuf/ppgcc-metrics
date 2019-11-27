@@ -814,22 +814,32 @@ class DiscentesCAPGCNPJ(Dataset):
             students += self.RX_PDF.findall(s)
         students = [(self.clean_cpf(c), names.clean_name(n)) \
                     for c,n in students]
-        print(f'Looking for {len(students)} students in ~26 million CNPJs')
-        print('This will take many HOURS. Will print every 100 thousand rows')
-        with open(filepath, 'w', newline='', encoding=self.encoding) as out_f, \
-             self.socios.open_csv() as socios:
+        print(f'Looking for {len(students)} students in ~26.6 million CNPJs')
+        print('This will take many HOURS.')
+        with open(filepath+'.tmp', 'w', newline='', encoding=self.encoding) as out_f, \
+             self.socios.open_csv() as socios, \
+             tqdm(unit_scale=True, unit='row', mininterval=1, \
+                  desc=f'Finding students in {self.socios}') as pbar:
             writer = csv.DictWriter(out_f, fieldnames=self.FIELDS)
             writer.writeheader()
             wrote = 0
-            read = 0
             for r in socios:
                 merged = self._match_student(r, students)
                 if merged:
                     writer.writerow(merged)
+                    wrote += 1
                     print(f'CNPJ {merged["cnpj"]} for {merged["discente"]}')
-                read += 1
-                if read % 100000 == 0:
-                    print(f'read {read} lines')
+                pbar.update(1)
+        cpf_filepath = re.sub(r'.csv$', '+cpf.csv', filepath)
+        os.replace(filepath+'.tmp', cpf_filepath)
+        with open(filepath, 'w', newline='', encoding=self.encoding) as out_f, \
+             open(cpf_filepath, 'r', newline='', encoding=self.encoding) as cpf_f:
+            reader = csv.DictReader(cpf_f)
+            writer = csv.DictWriter(out_f, fieldnames=reader.fieldnames)
+            writer.writeheader()
+            for d in reader:
+                d['cpf'] = ''
+                writer.writerow(d)
         return wrote
         
     def download(self, **kwargs):
@@ -839,10 +849,18 @@ class DiscentesCAPGCNPJ(Dataset):
         return filepath
 
 class DiscentesCAPGCNPJDetails(Dataset):
-    def __init__(self, filename, capg_cnpj, empresas, **kwargs):
+    # 62 ATIVIDADES DOS SERVIÇOS DE TECNOLOGIA DA INFORMAÇÃO
+    # 63 ATIVIDADES DE PRESTAÇÃO DE SERVIÇOS DE INFORMAÇÃO
+    # 72 PESQUISA E DESENVOLVIMENTO CIENTÍFICO
+    # 77 ALUGUÉIS NÃO-IMOBILIÁRIOS E GESTÃO DE ATIVOS INTANGÍVEIS NÃO-FINANCEIROS
+    #    77.3 Aluguel de máquinas e equipamentos sem operador
+    RX_CNAE = re.compile(r'^6[23]|72|773')
+        
+    def __init__(self, filename, capg_cnpj, empresas, cnaes, **kwargs):
         super().__init__(filename, None, **kwargs)
         self.capg_cnpj = capg_cnpj
         self.empresas = empresas
+        self.cnaes = cnaes
         self.non_trivial = not capg_cnpj.is_ready() or not empresas.is_ready()
 
     def download(self, force=False, **kwargs):
@@ -853,19 +871,38 @@ class DiscentesCAPGCNPJDetails(Dataset):
         with self.capg_cnpj.open_csv() as reader:
             fields = reader.fieldnames
             for x in reader:
-                in_dicts[x['cnpj']] = x
+                in_dicts[x['cnpj']] = in_dicts.get(x['cnpj'], []) + [x]
+        merged = dict()
         with self.empresas.open_csv() as empresas, \
-             open(filepath, 'w', encoding=self.encoding, newline='') as out_f:
+             tqdm(unit_scale=True, unit='row', mininterval=1,
+                  desc=f'Merging {self.empresas} into {self}') as pbar:
             fields += list(filter(lambda x: x not in fields, empresas.fieldnames))
-            writer = csv.DictWriter(out_f, fieldnames=fields)
-            writer.writeheader()
-            read = 0
             for x in empresas:
                 if x['cnpj'] in in_dicts:
-                    writer.writerow({**in_dicts[x['cnpj']], **x})
-                read += 1
-                if read % 1000000 == 0:
-                    print(f'Processed {read/1000000}M rows in empresas.csv.gz')
+                    for in_d in in_dicts[x['cnpj']]:
+                        d = {**in_d, **x}
+                        merged[x['cnpj']] = merged.get(x['cnpj'], []) + [d]
+                pbar.update(1)
+        fields.append('cnae_computacao')
+        for l in merged.values():
+            for d in l:
+                m = self.RX_CNAE.match(d['cnae_fiscal'])
+                d['cnae_computacao'] = 1 if m else 0
+        with self.cnaes.open_csv() as cnaes, \
+             tqdm(unit_scale=True, unit='row', mininterval=1, \
+                  desc=f'Merging {self.cnaes} into {self}') as pbar:
+            for r in cnaes:
+                for e in merged.get(r['cnpj'], []):
+                    value = e.get('cnae_computacao', False) or \
+                            (1 if self.RX_CNAE.match(r['cnae']) else 0)
+                    e['cnae_computacao'] = value
+                pbar.update(1)
+        with open(filepath, 'w', encoding=self.encoding, newline='') as out_f:
+            writer = csv.DictWriter(out_f, fieldnames=fields)
+            writer.writeheader()
+            for l in merged.values():
+                for d in l:
+                    writer.writerow(d)
         return filepath
 
         
@@ -911,7 +948,8 @@ CNAE_SECUNDARIA = CompressedCSV('cnae-secundaria.csv', \
                                 url='https://drive.google.com/uc?id=' +\
                                 '1LgmoYWJoqsI-jQGZV6u9AM3GEIr40Wwm')
 CAPG_CNPJ = DiscentesCAPGCNPJ('capg-cnpj.csv', 'capg_pdfs', SOCIOS_BRASIL)
-CAPG_CNPJ_DETAILS = DiscentesCAPGCNPJDetails('capg-cnpj-details.csv', CAPG_CNPJ, EMPRESAS_BRASIL)
+CAPG_CNPJ_DETAILS = DiscentesCAPGCNPJDetails('capg-cnpj-details.csv', CAPG_CNPJ, \
+                                             EMPRESAS_BRASIL, CNAE_SECUNDARIA)
 
 def fix_all_names():
     names.fix_csv_names([DOCENTES, PPGCC_CALENDAR_CSV],

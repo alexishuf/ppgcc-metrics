@@ -295,6 +295,37 @@ original meanings. The columns below are computed only for this file.
 | PTS\_PER\_IR       | Same as PTS\_PER, but only considers SICLAP levesls within "índice restrito"                                                                                                                                                                                                                                                                                            |
 | ST\_REQ\_PUB       | Whether the student achieved his mandatory publication requirements. This considers the rules defined for the level and enrollment semester. Publications found in the calendar event of the student's master defense (if is a PhD student) are disconsidered. Only articles in N_CONF are considered, articles knowingly from before his enrollment are not considered.|
 
+## capg-cnpj.csv and capg-cnpj-details.csv
+
+The first CSV is built by `ds.DiscentesCAPGCNPJ` extracting CPF number of
+students mentioned in CAPG report PDFs, dropped in `data/capg_pdfs`. The name
+and CPF of each student is joined with the `socio.csv.gz` file obtained with
+brasil.io [socios-brasil](https://github.com/turicas/socios-brasil) dataset. The
+publicly avaiable version does not include CPFs, so you must clone the repo and
+download all data from RFB's site using `./run.sh --no_censorship`. Since doing
+this takes a lot of time, `capg-cnpj.csv` is under version control, without CPFs.
+
+The `capg-cnpj-details.csv` file joins the first with all data from
+`empresa.csv.gz` which can be downloaded from the public releases. In addition,
+the fiscal regime CNAE and the secondary activity CNAEs
+(`cnae-secundaria.csv.gz`) of each joined CNPJ are inspected to determine if the
+company has some relation with computer science or research. The following
+classes are considered related:
+
+| Prefix | IBGE description                                    |
+|--------|-----------------------------------------------------|
+| 62     | ATIVIDADES DOS SERVIÇOS DE TECNOLOGIA DA INFORMAÇÃO |
+| 63     | ATIVIDADES DE PRESTAÇÃO DE SERVIÇOS DE INFORMAÇÃO   |
+| 72     | PESQUISA E DESENVOLVIMENTO CIENTÍFICO               |
+| 77.3   | Aluguel de máquinas e equipamentos sem operador     |
+
+All output CSVs retain the layout of socio.csv.gz, adding only two columns:
+
+| Column   | Meaning                                                        |
+|--------  |----------------------------------------------------------------|
+| cpf      | Full, unmasked CPF (**never put this under version control!**) | 
+| discente | Full student (aligned with other datasets when possible)       |
+
 ## bibliometrics.csv and bibliometrics-year.csv
 
 Some citation-related metrics collected from `scholar-works.csv` and
