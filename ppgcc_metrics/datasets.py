@@ -607,7 +607,7 @@ class CPCWorks(Dataset):
             raise ValueError(f'Got no ranges from sheet {self.sheetId}. ' + \
                              f'Asked for {range_address}')
         rows = ranges[0].get('values')
-        artigo_idx = rows[0].index('Artigo')
+        artigo_idx = rows[0].index('Artigo (conforme Lattes)')
         header = rows[0][:artigo_idx] + ['autores'] + rows[0][artigo_idx:]
         header = [x.replace('\n', ' ').strip() for x in header]
         rows = rows[1:]
