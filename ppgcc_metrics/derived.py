@@ -303,6 +303,9 @@ class AugmentedDiscentes(datasets.Dataset):
             writer = csv.DictWriter(out_f, fieldnames=fieldnames)
             writer.writeheader()
             for d in students:
+                k = 'NM_SITUACAO_DISCENTE'
+                if k not in d or d[k].strip() == '':
+                    d[k] = 'MATRICULADO'
                 d['DT_MATRICULA_ISO'] = datasets.suc_date2iso(d['DT_MATRICULA_DISCENTE'])
                 d['DT_SITUACAO_ISO'] = datasets.suc_date2iso(d['DT_SITUACAO_DISCENTE'])
                 d['N_CONF'] = sum([1 for x in self.get_works(d, 'CONF')])
