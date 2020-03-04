@@ -52,6 +52,8 @@ def download_url(url, to):
     os.replace(to+'.tmp', to)
     return to
 
+def _tol_getidx(a_list, idx, fallback=None):
+    return a_list[idx] if len(a_list) >= idx + 1 else fallback
 
 class Dataset:
     def __init__(self, name, url, directory='data', non_trivial=False,
@@ -703,24 +705,26 @@ class SecretariaDiscentes(Dataset):
                     name, coadvisor = self.parse_name(data[i][3])
                     matr = datetime.strptime(data[i][5].strip(), '%d/%m/%Y')
                     term = datetime.strptime(data[i][9].strip(), '%d/%m/%Y')
-                    writer.writerow({
+                    cells = data[i]
+                    d = {
                         self.FIELDS[ 0]: name,
                         self.FIELDS[ 1]: grau,
                         self.FIELDS[ 2]: date2suc_date(matr),
                         self.FIELDS[ 3]: date2suc_date(date.today()),
                         self.FIELDS[ 4]: advisor,
                         self.FIELDS[ 5]: coadvisor,
-                        self.FIELDS[ 6]: data[i][6],  #prorrog_1
-                        self.FIELDS[ 7]: data[i][7],  #prorrog_2
-                        self.FIELDS[ 8]: data[i][8],  #tranc
+                        self.FIELDS[ 6]: _tol_getidx(cells, 6, ''),  #prorrog_1
+                        self.FIELDS[ 7]: _tol_getidx(cells, 7, ''),  #prorrog_2
+                        self.FIELDS[ 8]: _tol_getidx(cells, 8, ''),  #tranc
                         self.FIELDS[ 9]: date2suc_date(term),
                         self.FIELDS[10]: term.isoformat(),
-                        self.FIELDS[11]: data[i][10], #prof ing
-                        self.FIELDS[12]: data[i][11], #prof 2
-                        self.FIELDS[13]: data[i][12], #sad
-                        self.FIELDS[14]: data[i][13], #qualify
-                        self.FIELDS[15]: data[i][14], #seminarios
-                    })
+                        self.FIELDS[11]: _tol_getidx(cells, 10, ''), #prof ing
+                        self.FIELDS[12]: _tol_getidx(cells, 11, ''), #prof 2
+                        self.FIELDS[13]: _tol_getidx(cells, 12, ''), #sad
+                        self.FIELDS[14]: _tol_getidx(cells, 13, ''), #qualify
+                        self.FIELDS[15]: _tol_getidx(cells, 14, 0 ), #seminarios
+                    }
+                    writer.writerow(d)
                     i += 1
         return filepath
 
