@@ -167,7 +167,7 @@ class AugmentedDiscentes(datasets.Dataset):
     
     def __init__(self, sucupira, cpc, secretaria, calendar, calendar_csv, \
                  filename='discentes-augmented.csv', **kwargs):
-        kwargs['csv_delim'] = kwargs.get('csv_delim', ';')
+        kwargs['csv_delim'] = kwargs.get('csv_delim', ',')
         super().__init__(filename, None, **kwargs)
         self.sucupira = sucupira
         self.cpc = cpc
@@ -204,7 +204,10 @@ class AugmentedDiscentes(datasets.Dataset):
             if doi:
                 print(f'######## returning {doi in event["description"]}')
                 return doi in event['description']
-            if phd_enroll_year == date.fromisoformat(e_dict['data_ymd']).year:
+            is_per = cpc_entry['Tipo'] in ['Periódico', 'Periodico', 'Journal']
+            year = datasets.tolerant_int(cpc_entry['Ano'])
+            defense_year = date.fromisoformat(e_dict['data_ymd']).year
+            if year < defense_year or (is_per and year == defense_year):
                 return True # assume it is a masters' paper
         return False
         
